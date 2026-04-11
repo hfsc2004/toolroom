@@ -34,7 +34,7 @@
         .correction-active { display: block !important; }
 
         .qr-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-top: 15px; background: #222; padding: 15px; border-radius: 15px; }
-        .qr-item { font-size: 0.75rem; color: #888; text-align: center; }
+        .qr-item { font-size: 0.75rem; color: #888; text-align: center; cursor: pointer; user-select: none; }
         .qr-item img { width: 80px; height: 80px; border: 4px solid white; border-radius: 8px; display: block; margin: 0 auto 5px; }
         #numpad-overlay {
             position: fixed;
@@ -60,6 +60,8 @@
         .overlay-tally { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 8px 0 14px; }
         .overlay-tally-label { color: #9abf9a; font-size: 1rem; }
         .overlay-tally-value {
+            flex-grow: 0;
+            margin-right: 0;
             min-width: 90px;
             padding: 8px 14px;
             border: 2px solid #00ff00;
@@ -130,7 +132,7 @@
                     <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
                     <div class="overlay-tally">
                         <span class="overlay-tally-label">Qty</span>
-                        <span id="overlay-tally-value" class="overlay-tally-value">1</span>
+                        <input type="text" id="overlay-tally-value" class="overlay-tally-value" value="1" inputmode="numeric" style="width: 120px;">
                     </div>
                     <div style="display:flex; justify-content:center; margin: 6px 0 10px;">
                         <div class="qr-item qty-command-clear">
@@ -227,13 +229,34 @@
             e.stopPropagation(); openNumPad();
         });
 
+        function applyManualQtyValue(rawVal, sourceEl) {
+            const digitsOnly = (rawVal || "").replace(/\D/g, '');
+            currentTally = digitsOnly;
+            qtyEntryStarted = digitsOnly.length > 0;
+            syncQtyDisplays(sourceEl);
+        }
+
+        function normalizeQtyIfEmpty() {
+            if (!currentTally) {
+                currentTally = "1";
+                qtyEntryStarted = false;
+                syncQtyDisplays();
+            }
+        }
+
+        // Manual Qty typing should stay native and sync into submit state.
+        qtyBubble.addEventListener('input', () => applyManualQtyValue(qtyBubble.value, qtyBubble));
+        overlayTallyValue.addEventListener('input', () => applyManualQtyValue(overlayTallyValue.value, overlayTallyValue));
+        qtyBubble.addEventListener('blur', normalizeQtyIfEmpty);
+        overlayTallyValue.addEventListener('blur', normalizeQtyIfEmpty);
+
         function openNumPad() {
             isEnteringNum = true;
             numpadOverlay.style.display = 'flex';
             syncQtyDisplays();
             statusBar.innerText = "NUMBER ENTRY MODE";
             statusBar.style.display = "block";
-            setTimeout(() => { qtyBubble.focus(); qtyBubble.select(); }, 100);
+            setTimeout(() => { overlayTallyValue.focus(); overlayTallyValue.select(); }, 100);
         }
 
         function closeNumPad() {
@@ -246,11 +269,42 @@
             }, 100);
         }
 
-        function syncQtyDisplays() {
-            qtyBubble.value = currentTally;
-            qtyInput.value = currentTally;
-            overlayTallyValue.innerText = currentTally;
+        function syncQtyDisplays(sourceEl) {
+            if (sourceEl !== qtyBubble) qtyBubble.value = currentTally;
+            if (sourceEl !== overlayTallyValue) overlayTallyValue.value = currentTally;
+            qtyInput.value = currentTally || "1";
         }
+
+        function getQrDataFromItem(itemEl) {
+            const img = itemEl.querySelector('img');
+            if (!img || !img.src) return null;
+            try {
+                const url = new URL(img.src);
+                return url.searchParams.get('data');
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function stripCommandFragments(raw) {
+            if (!raw) return "";
+            return raw
+                .replace(/CMD-[A-Z0-9-]+/gi, '')
+                .replace(/NUM-\d+/gi, '')
+                .trim();
+        }
+
+        // Let operators use mouse/touch on QR tiles instead of scanning.
+        document.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const qrItem = e.target.closest('.qr-item');
+            if (!qrItem) return;
+            const burst = getQrDataFromItem(qrItem);
+            if (!burst) return;
+            e.preventDefault();
+            e.stopPropagation();
+            handleBurst(burst, null);
+        });
 
         function ensureFocus(e) {
             if (ssActive) { stopScreensaver(); return; }
@@ -323,15 +377,34 @@
         document.addEventListener('keydown', (e) => {
             if (settingsOpen) return;
             if (e.altKey || e.ctrlKey || e.metaKey) return;
+            const activeEl = document.activeElement;
+            const isFocusedInput = activeEl instanceof HTMLInputElement;
 
             if (e.key === 'Enter') {
-                if (!scanBuffer) return;
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                const val = scanBuffer.trim();
-                const target = scanTarget;
+                if (scanBuffer) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const val = scanBuffer.trim();
+                    const target = scanTarget;
+                    clearScanState();
+                    if (val) handleBurst(val, target, null);
+                    return;
+                }
+
+                // Scanner in keyboard-wedge mode often types into the focused field then sends Enter.
+                if (isFocusedInput) {
+                    const val = activeEl.value.trim();
+                    if (!val) return;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    handleBurst(val, activeEl, activeEl);
+                }
+                return;
+            }
+
+            if (isFocusedInput) {
+                // Keep native typing behavior in inputs (manual keyboard entry).
                 clearScanState();
-                if (val) handleBurst(val, target);
                 return;
             }
 
@@ -362,12 +435,15 @@
             scheduleIdleCommit();
         }, true);
 
-        function handleBurst(val, targetInput) {
+        function handleBurst(val, targetInput, sourceInput) {
             const normalized = val.toUpperCase().replace(/\s+/g, '');
             // Flexible detection for commands (handles missing hyphens)
             const isCommand = normalized.includes('CMD') || normalized.includes('NUM');
 
             if (isCommand) {
+                if (sourceInput instanceof HTMLInputElement) {
+                    sourceInput.value = stripCommandFragments(sourceInput.value);
+                }
                 statusBar.innerText = "COMMAND: " + normalized;
                 statusBar.style.display = "block";
 
@@ -405,7 +481,7 @@
                         const formData = new FormData();
                         formData.append('badge', badgeInput.value);
                         formData.append('item', itemInput.value);
-                        formData.append('qty', currentTally);
+                        formData.append('qty', currentTally || "1");
                         fetch('/scan', { method: 'POST', body: formData }).then(() => window.location.reload());
                     } else {
                         statusBar.innerText = "ERROR: MISSING DATA";
