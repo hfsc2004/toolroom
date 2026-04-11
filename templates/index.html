@@ -101,8 +101,8 @@
         <img src="{{ url_for('static', filename='logo.png') }}" id="bouncing-logo" alt="DVD Logo">
     </div>
 
-    <div class="container" id="main-ui">
-        <div id="status-bar">WAITING: SCAN THE 'REDO' QR CODE</div>
+        <div class="container" id="main-ui">
+            <div id="status-bar">READY</div>
         
         <div class="header-area">
             <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Company Logo" onerror="this.style.display='none'">
@@ -116,7 +116,7 @@
             <div class="scan-row"><input type="text" id="badge" name="badge" placeholder="1. SCAN BADGE" autocomplete="off"><div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-REDO-BADGE"><p>REDO BADGE</p></div></div>
             <div class="scan-row"><input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off"><div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-REDO-ITEM"><p>REDO ITEM</p></div></div>
             <div class="qty-container">
-                <div style="text-align: right;"><p style="margin: 0; color: #888;">CURRENT<br>TALLY</p></div>
+                <div style="text-align: right;"><p style="margin: 0; color: #888;">Qty</p></div>
                 <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
                 <div class="qty-commands">
                     <div class="qr-item qty-command-open"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-OPEN-PAD"><p style="color: #00ff00; font-weight: bold;">OPEN NUM PAD</p></div>
@@ -129,7 +129,7 @@
                 <div id="numpad-container">
                     <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
                     <div class="overlay-tally">
-                        <span class="overlay-tally-label">CURRENT TALLY</span>
+                        <span class="overlay-tally-label">Qty</span>
                         <span id="overlay-tally-value" class="overlay-tally-value">1</span>
                     </div>
                     <div style="display:flex; justify-content:center; margin: 6px 0 10px;">
@@ -148,7 +148,6 @@
                 </div>
             </div>
             <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CORRECT"><p style="color:#ff9900">CORRECT FIELD</p></div>
                 <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-SUBMIT"><p style="color:#00ff00; font-weight:bold;">FINISH & LOG</p></div>
             </div>
         </form>
@@ -178,9 +177,9 @@
         const modalOverlay = document.getElementById('modal-overlay');
         const numpadOverlay = document.getElementById('numpad-overlay');
         
-        let isWaitingForRedo = false;
         let isEnteringNum = false;
         let currentTally = "1";
+        let qtyEntryStarted = false;
 
         // Scanner burst state. Keep raw scan text out of inputs until a burst completes.
         let scanBuffer = "";
@@ -372,13 +371,7 @@
                 statusBar.innerText = "COMMAND: " + normalized;
                 statusBar.style.display = "block";
 
-                if (normalized.includes('CORRECT')) {
-                    isWaitingForRedo = true;
-                    statusBar.innerText = "CORRECTION MODE: SCAN REDO";
-                    return;
-                }
-                if (isWaitingForRedo && normalized.includes('REDO')) {
-                    isWaitingForRedo = false;
+                if (normalized.includes('REDO')) {
                     statusBar.style.display = "none";
                     if (normalized.includes('BADGE')) { badgeInput.value = ""; badgeInput.focus(); }
                     else { itemInput.value = ""; itemInput.focus(); }
@@ -386,6 +379,7 @@
                 }
                 if (normalized.includes('CLEAR-QTY')) {
                     currentTally = "1";
+                    qtyEntryStarted = false;
                     syncQtyDisplays();
                     return;
                 }
@@ -395,10 +389,15 @@
                     const digitMatch = normalized.match(/\d/);
                     if (!digitMatch) return;
                     const digit = digitMatch[0];
-                    if (currentTally === "1" || !isEnteringNum) currentTally = digit;
-                    else currentTally += digit;
-                    syncQtyDisplays();
                     if (!isEnteringNum) openNumPad();
+
+                    if (!qtyEntryStarted) {
+                        currentTally = digit;
+                        qtyEntryStarted = true;
+                    } else {
+                        currentTally += digit;
+                    }
+                    syncQtyDisplays();
                     return;
                 }
                 if (normalized.includes('SUBMIT')) {
