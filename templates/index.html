@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Toolroom Kiosk</title>
+    <style>
+        body { background-color: #121212 !important; color: #00ff00; font-family: sans-serif; margin: 0; display: flex; justify-content: center; overflow: hidden; }
+        .container { width: 95%; max-width: 1100px; padding: 10px; text-align: center; }
+        
+        .header-area { display: flex; align-items: center; justify-content: center; gap: 30px; margin-bottom: 10px; position: relative; }
+        .logo { max-height: 80px; width: auto; }
+        
+        .settings-btn { 
+            position: absolute; right: 0; top: 10px; 
+            background: #222; border: 1px solid #444; border-radius: 10px;
+            cursor: pointer; padding: 10px; z-index: 99999;
+        }
+        .settings-btn svg { fill: #666; }
+        .settings-btn:hover svg { fill: #00ff00; }
+        
+        h1 { font-size: 2.5rem; text-transform: uppercase; margin: 0; color: #ffffff; }
+        
+        .scan-row { display: flex; align-items: center; justify-content: space-between; background: #1e1e1e; padding: 15px; margin-bottom: 10px; border: 2px solid #333; border-radius: 15px; }
+        input { flex-grow: 1; font-size: 2rem; padding: 12px; background: #000; color: #00ff00; border: 2px solid #444; margin-right: 15px; }
+        input:focus { border-color: #00ff00; outline: none; border-width: 4px; }
+
+        .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
+        .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
+
+        #status-bar { font-size: 1.2rem; padding: 10px; margin-bottom: 10px; border-radius: 10px; display: none; background: #ff9900; color: black; font-weight: bold; }
+        .correction-active { display: block !important; }
+
+        .qr-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-top: 15px; background: #222; padding: 15px; border-radius: 15px; }
+        .qr-item { font-size: 0.75rem; color: #888; text-align: center; }
+        .qr-item img { width: 80px; height: 80px; border: 4px solid white; border-radius: 8px; display: block; margin: 0 auto 5px; }
+
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 8px; font-size: 1rem; }
+
+        #screensaver { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; display: none; z-index: 100000; }
+        #bouncing-logo { position: absolute; max-height: 150px; width: auto; left: 0; top: 0; }
+
+        #settings-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #222; border: 3px solid #00ff00; padding: 30px; border-radius: 20px;
+            z-index: 100001; display: none; color: white; min-width: 320px; text-align: center;
+        }
+        .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 100000; display: none; }
+    </style>
+</head>
+<body onclick="ensureFocus(event)">
+
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div id="settings-modal">
+        <h3 style="color:#00ff00; margin-top:0;">KIOSK SETTINGS</h3>
+        <p>Screensaver Idle Time (Minutes):</p>
+        <input type="number" id="timer-setting" value="5" style="width: 80px; text-align: center; font-size: 1.5rem; background:#000; color:#00ff00;">
+        <br><br>
+        <button id="save-btn" style="padding: 15px 30px; background: #00ff00; color: black; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem;">SAVE & CLOSE</button>
+    </div>
+
+    <div id="screensaver">
+        <img src="{{ url_for('static', filename='logo.png') }}" id="bouncing-logo" alt="DVD Logo">
+    </div>
+
+    <div class="container" id="main-ui">
+        <div id="status-bar">WAITING: SCAN THE 'REDO' QR CODE</div>
+        
+        <div class="header-area">
+            <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Company Logo" onerror="this.style.display='none'">
+            <h1>Toolroom Kiosk</h1>
+            <button id="gear-btn" class="settings-btn" type="button">
+                <svg width="40" height="40" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
+        </div>
+        
+        <form id="scan-form" onsubmit="return false;">
+            <div class="scan-row"><input type="text" id="badge" name="badge" placeholder="1. SCAN BADGE" autocomplete="off"><div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-REDO-BADGE"><p>REDO BADGE</p></div></div>
+            <div class="scan-row"><input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off"><div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-REDO-ITEM"><p>REDO ITEM</p></div></div>
+            <div class="qty-container">
+                <div style="text-align: right;"><p style="margin: 0; color: #888;">CURRENT<br>TALLY</p></div>
+                <div class="qty-display" id="qty-bubble">1</div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CLEAR-QTY"><p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p></div>
+            </div>
+            <input type="hidden" id="qty-input" name="qty" value="1">
+            <div class="qr-grid">
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-1"><p>ADD 1</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-5"><p>ADD 5</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-10"><p>ADD 10</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-25"><p>ADD 25</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MULT-10"><p>MULT 10x</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MULT-100"><p>MULT 100x</p></div>
+            </div>
+            <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CORRECT"><p style="color:#ff9900">CORRECT FIELD</p></div>
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-SUBMIT"><p style="color:#00ff00; font-weight:bold;">FINISH & LOG</p></div>
+            </div>
+        </form>
+
+        <table>
+            <thead><tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr></thead>
+            <tbody>
+                {% for scan in scans %}
+                <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const badgeInput = document.getElementById('badge');
+        const itemInput = document.getElementById('item');
+        const qtyBubble = document.getElementById('qty-bubble');
+        const qtyInput = document.getElementById('qty-input');
+        const statusBar = document.getElementById('status-bar');
+        const ssOverlay = document.getElementById('screensaver');
+        const ssLogo = document.getElementById('bouncing-logo');
+        const gearBtn = document.getElementById('gear-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+        
+        let isWaitingForRedo = false;
+        let idleTime = 0;
+        let ssActive = false;
+        let settingsOpen = false;
+        let ssLimit = parseInt(localStorage.getItem('ssLimit')) || 300; 
+        
+        // DVD Physics Variables
+        let posX = 0, posY = 0, dx = 4, dy = 4;
+        let animationFrameId = null;
+
+        window.onload = () => { 
+            document.getElementById('timer-setting').value = ssLimit / 60;
+            badgeInput.focus(); 
+            resetIdleTimer(); 
+        };
+
+        gearBtn.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            e.preventDefault(); // Prevent focus theft from scanner inputs
+            settingsOpen = true;
+            settingsModal.style.display = 'block';
+            modalOverlay.style.display = 'block';
+            setTimeout(() => document.getElementById('timer-setting').focus(), 50);
+        });
+
+        saveBtn.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            const minutes = document.getElementById('timer-setting').value || 5;
+            ssLimit = minutes * 60;
+            localStorage.setItem('ssLimit', ssLimit);
+            settingsOpen = false;
+            settingsModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+            resetIdleTimer();
+            badgeInput.focus();
+        });
+
+        function ensureFocus(e) {
+            if (ssActive) { stopScreensaver(); return; }
+            if (settingsOpen) return;
+
+            // Don't steal focus if user is clicking buttons or typing in settings
+            if (e && (e.target.closest('#gear-btn') || e.target.closest('#settings-modal') || e.target.tagName === 'INPUT')) return;
+
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        function resetIdleTimer() { 
+            idleTime = 0; 
+            if (ssActive) stopScreensaver(); 
+        }
+
+        setInterval(() => { 
+            if (!settingsOpen) { 
+                idleTime++; 
+                if (idleTime >= ssLimit && !ssActive) startScreensaver(); 
+            } 
+        }, 1000);
+
+        function startScreensaver() {
+            ssActive = true;
+            ssOverlay.style.display = 'block';
+            // Start from a random spot so it doesn't get stuck in the corner
+            posX = Math.random() * (window.innerWidth - 200);
+            posY = Math.random() * (window.innerHeight - 150);
+            moveLogo();
+        }
+
+        function stopScreensaver() {
+            ssActive = false;
+            ssOverlay.style.display = 'none';
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            badgeInput.focus();
+        }
+
+        function moveLogo() {
+            if (!ssActive) return;
+
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const logoW = ssLogo.offsetWidth || 150; // Fallback if not yet rendered
+            const logoH = ssLogo.offsetHeight || 100;
+
+            // Collision Detection
+            if (posX + logoW >= winW || posX <= 0) dx = -dx;
+            if (posY + logoH >= winH || posY <= 0) dy = -dy;
+
+            posX += dx;
+            posY += dy;
+
+            ssLogo.style.left = posX + 'px';
+            ssLogo.style.top = posY + 'px';
+            
+            animationFrameId = requestAnimationFrame(moveLogo);
+        }
+
+        ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => window.addEventListener(evt, resetIdleTimer));
+
+        document.addEventListener('keydown', (e) => {
+            if (settingsOpen) return;
+            if (e.key === 'Enter') {
+                const activeEl = document.activeElement;
+                const val = activeEl.value.trim();
+                
+                if (val.includes('CMD-CORRECT')) {
+                    e.preventDefault(); activeEl.value = val.replace('CMD-CORRECT', '');
+                    isWaitingForRedo = true; statusBar.classList.add('correction-active'); return;
+                }
+                if (isWaitingForRedo) {
+                    e.preventDefault(); activeEl.value = val.replace(/CMD-REDO-.*/, '');
+                    if (val.includes('CMD-REDO-BADGE')) { badgeInput.value = ''; badgeInput.focus(); }
+                    else if (val.includes('CMD-REDO-ITEM')) { itemInput.value = ''; itemInput.focus(); }
+                    isWaitingForRedo = false; statusBar.classList.remove('correction-active'); return;
+                }
+                if (val.includes('ADD-')) {
+                    e.preventDefault(); qtyInput.value = parseInt(qtyInput.value) + parseInt(val.split('-')[1]);
+                    qtyBubble.innerText = qtyInput.value; activeEl.value = val.replace(/ADD-.*/, ''); return;
+                }
+                if (val.includes('MULT-')) {
+                    e.preventDefault(); qtyInput.value = parseInt(qtyInput.value) * parseInt(val.split('-')[1]);
+                    qtyBubble.innerText = qtyInput.value; activeEl.value = val.replace(/MULT-.*/, ''); return;
+                }
+                if (val.includes('CMD-CLEAR-QTY')) {
+                    e.preventDefault(); qtyInput.value = 1; qtyBubble.innerText = 1;
+                    activeEl.value = val.replace('CMD-CLEAR-QTY', ''); return;
+                }
+                if (val.includes('CMD-SUBMIT')) {
+                    e.preventDefault(); activeEl.value = val.replace('CMD-SUBMIT', '');
+                    if(badgeInput.value && itemInput.value) {
+                        const formData = new FormData();
+                        formData.append('badge', badgeInput.value);
+                        formData.append('item', itemInput.value);
+                        formData.append('qty', qtyInput.value);
+                        fetch('/scan', { method: 'POST', body: formData }).then(() => window.location.reload());
+                    }
+                    return;
+                }
+                if (activeEl === badgeInput && val.length > 0) itemInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>
