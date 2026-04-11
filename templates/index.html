@@ -26,6 +26,9 @@
 
         .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
         .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
+        .qty-commands { display: flex; flex-direction: column; align-items: center; gap: 65px; padding: 8px 0; }
+        .qty-command-open img { border-color: #00ff00; }
+        .qty-command-clear img { border-color: #ff4444; }
 
         #status-bar { font-size: 1.2rem; padding: 10px; margin-bottom: 10px; border-radius: 10px; display: none; background: #ff9900; color: black; font-weight: bold; }
         .correction-active { display: block !important; }
@@ -33,6 +36,41 @@
         .qr-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-top: 15px; background: #222; padding: 15px; border-radius: 15px; }
         .qr-item { font-size: 0.75rem; color: #888; text-align: center; }
         .qr-item img { width: 80px; height: 80px; border: 4px solid white; border-radius: 8px; display: block; margin: 0 auto 5px; }
+        #numpad-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
+            display: none;
+            z-index: 99990;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+        }
+        #numpad-container {
+            width: min(960px, 96vw);
+            max-height: 90vh;
+            overflow-y: auto;
+            margin-top: 0;
+            background: #222;
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #00ff00;
+            box-sizing: border-box;
+        }
+        .overlay-tally { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 8px 0 14px; }
+        .overlay-tally-label { color: #9abf9a; font-size: 1rem; }
+        .overlay-tally-value {
+            min-width: 90px;
+            padding: 8px 14px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            background: #003300;
+            color: #00ff00;
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        #numpad-grid { grid-template-columns: repeat(4, minmax(90px, 1fr)); }
 
         table { width: 100%; margin-top: 20px; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 8px; font-size: 1rem; }
@@ -80,19 +118,33 @@
             <div class="qty-container">
                 <div style="text-align: right;"><p style="margin: 0; color: #888;">CURRENT<br>TALLY</p></div>
                 <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-OPEN-PAD"><p style="color: #00ff00; font-weight: bold;">OPEN NUM PAD</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CLEAR-QTY"><p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p></div>
+                <div class="qty-commands">
+                    <div class="qr-item qty-command-open"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-OPEN-PAD"><p style="color: #00ff00; font-weight: bold;">OPEN NUM PAD</p></div>
+                    <div class="qr-item qty-command-clear"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CLEAR-QTY"><p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p></div>
+                </div>
             </div>
             <input type="hidden" id="qty-input" name="qty" value="1">
             
-            <div id="numpad-container" style="display: none; margin-top: 15px; background: #222; padding: 20px; border-radius: 15px; border: 2px solid #00ff00;">
-                <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
-                <div class="qr-grid" id="numpad-grid">
-                    {% for i in range(1, 10) %}
-                    <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-{{i}}"><p>SCAN {{i}}</p></div>
-                    {% endfor %}
-                    <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-0"><p>SCAN 0</p></div>
-                    <div class="qr-item" style="grid-column: span 2;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-DONE-PAD"><p style="color:#00ff00; font-weight:bold;">DONE / HIDE PAD</p></div>
+            <div id="numpad-overlay">
+                <div id="numpad-container">
+                    <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
+                    <div class="overlay-tally">
+                        <span class="overlay-tally-label">CURRENT TALLY</span>
+                        <span id="overlay-tally-value" class="overlay-tally-value">1</span>
+                    </div>
+                    <div style="display:flex; justify-content:center; margin: 6px 0 10px;">
+                        <div class="qr-item qty-command-clear">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CLEAR-QTY">
+                            <p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p>
+                        </div>
+                    </div>
+                    <div class="qr-grid" id="numpad-grid">
+                        {% for i in range(1, 10) %}
+                        <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-{{i}}"><p>SCAN {{i}}</p></div>
+                        {% endfor %}
+                        <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-0"><p>SCAN 0</p></div>
+                        <div class="qr-item" style="grid-column: span 2;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-DONE-PAD"><p style="color:#00ff00; font-weight:bold;">DONE / HIDE PAD</p></div>
+                    </div>
                 </div>
             </div>
             <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
@@ -117,19 +169,26 @@
         const qtyBubble = document.getElementById('qty-bubble');
         const qtyInput = document.getElementById('qty-input');
         const statusBar = document.getElementById('status-bar');
+        const overlayTallyValue = document.getElementById('overlay-tally-value');
         const ssOverlay = document.getElementById('screensaver');
         const ssLogo = document.getElementById('bouncing-logo');
         const gearBtn = document.getElementById('gear-btn');
         const saveBtn = document.getElementById('save-btn');
         const settingsModal = document.getElementById('settings-modal');
         const modalOverlay = document.getElementById('modal-overlay');
-        const numpadContainer = document.getElementById('numpad-container');
+        const numpadOverlay = document.getElementById('numpad-overlay');
         
         let isWaitingForRedo = false;
         let isEnteringNum = false;
         let currentTally = "1";
-        let lastEnterTime = 0;
-        let scanBuffer = ""; // THE MASTER BURST BUFFER
+
+        // Scanner burst state. Keep raw scan text out of inputs until a burst completes.
+        let scanBuffer = "";
+        let scanTarget = null;
+        let scanLastKeyTs = 0;
+        let scanIdleTimer = null;
+        const SCAN_RESET_GAP_MS = 120;
+        const SCAN_IDLE_COMMIT_MS = 80;
 
         let idleTime = 0;
         let ssActive = false;
@@ -171,7 +230,8 @@
 
         function openNumPad() {
             isEnteringNum = true;
-            numpadContainer.style.display = 'block';
+            numpadOverlay.style.display = 'flex';
+            syncQtyDisplays();
             statusBar.innerText = "NUMBER ENTRY MODE";
             statusBar.style.display = "block";
             setTimeout(() => { qtyBubble.focus(); qtyBubble.select(); }, 100);
@@ -179,12 +239,18 @@
 
         function closeNumPad() {
             isEnteringNum = false;
-            numpadContainer.style.display = 'none';
+            numpadOverlay.style.display = 'none';
             statusBar.style.display = "none";
             setTimeout(() => {
                 if (!badgeInput.value) badgeInput.focus();
                 else if (!itemInput.value) itemInput.focus();
             }, 100);
+        }
+
+        function syncQtyDisplays() {
+            qtyBubble.value = currentTally;
+            qtyInput.value = currentTally;
+            overlayTallyValue.innerText = currentTally;
         }
 
         function ensureFocus(e) {
@@ -224,90 +290,118 @@
 
         ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => window.addEventListener(evt, resetIdleTimer));
 
-        // --- THE MASTER BURST INTERCEPTOR ---
+        function clearScanState() {
+            scanBuffer = "";
+            scanTarget = null;
+            scanLastKeyTs = 0;
+            if (scanIdleTimer) {
+                clearTimeout(scanIdleTimer);
+                scanIdleTimer = null;
+            }
+        }
+
+        function scheduleIdleCommit() {
+            if (scanIdleTimer) clearTimeout(scanIdleTimer);
+            scanIdleTimer = setTimeout(() => {
+                if (scanBuffer) {
+                    const val = scanBuffer.trim();
+                    const target = scanTarget;
+                    clearScanState();
+                    if (val) handleBurst(val, target);
+                }
+            }, SCAN_IDLE_COMMIT_MS);
+        }
+
+        function captureScanTarget() {
+            const activeEl = document.activeElement;
+            if (activeEl === badgeInput || activeEl === itemInput || activeEl === qtyBubble) return activeEl;
+            if (!badgeInput.value) return badgeInput;
+            if (!itemInput.value) return itemInput;
+            return badgeInput;
+        }
+
+        // --- MASTER BURST INTERCEPTOR (capture phase to beat input mutation) ---
         document.addEventListener('keydown', (e) => {
             if (settingsOpen) return;
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
 
-            // 1. Handle BURST completion (Enter Key)
             if (e.key === 'Enter') {
+                if (!scanBuffer) return;
                 e.preventDefault();
+                e.stopImmediatePropagation();
                 const val = scanBuffer.trim();
-                scanBuffer = ""; // Wipe buffer for next burst
-                
-                if (!val) return;
-
-                const now = Date.now();
-                if (now - lastEnterTime < 50) return;
-                lastEnterTime = now;
-
-                // Process the burst
-                handleBurst(val);
+                const target = scanTarget;
+                clearScanState();
+                if (val) handleBurst(val, target);
                 return;
             }
 
-            // 2. Intercept burst characters
-            if (e.key.length === 1) {
+            if (e.key === 'Backspace' && scanBuffer) {
                 e.preventDefault();
-                scanBuffer += e.key;
-                
-                // Only show text in field if it's NOT looking like a command burst
-                if (!scanBuffer.includes('CMD') && !scanBuffer.includes('NUM')) {
-                    const activeEl = document.activeElement;
-                    if (activeEl.tagName === 'INPUT') activeEl.value = scanBuffer;
-                }
-            }
-
-            // 3. Handle Backspace manually for the buffer
-            if (e.key === 'Backspace') {
+                e.stopImmediatePropagation();
                 scanBuffer = scanBuffer.slice(0, -1);
-                const activeEl = document.activeElement;
-                if (activeEl.tagName === 'INPUT') activeEl.value = scanBuffer;
+                scheduleIdleCommit();
+                return;
             }
-        });
 
-        // Reset buffer if user clicks manually into a different field
-        document.addEventListener('mousedown', (e) => {
-            if (e.target.tagName === 'INPUT') {
-                scanBuffer = e.target.value;
+            if (e.key.length !== 1) return;
+
+            const now = Date.now();
+            if (scanBuffer && now - scanLastKeyTs > SCAN_RESET_GAP_MS) {
+                const staleVal = scanBuffer.trim();
+                const staleTarget = scanTarget;
+                clearScanState();
+                if (staleVal) handleBurst(staleVal, staleTarget);
             }
-        });
 
-        function handleBurst(val) {
+            if (!scanBuffer) scanTarget = captureScanTarget();
+
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            scanBuffer += e.key;
+            scanLastKeyTs = now;
+            scheduleIdleCommit();
+        }, true);
+
+        function handleBurst(val, targetInput) {
+            const normalized = val.toUpperCase().replace(/\s+/g, '');
             // Flexible detection for commands (handles missing hyphens)
-            const isCommand = val.includes('CMD') || val.includes('NUM');
+            const isCommand = normalized.includes('CMD') || normalized.includes('NUM');
 
             if (isCommand) {
-                statusBar.innerText = "COMMAND: " + val;
+                statusBar.innerText = "COMMAND: " + normalized;
                 statusBar.style.display = "block";
 
-                if (val.includes('CORRECT')) {
+                if (normalized.includes('CORRECT')) {
                     isWaitingForRedo = true;
                     statusBar.innerText = "CORRECTION MODE: SCAN REDO";
                     return;
                 }
-                if (isWaitingForRedo && val.includes('REDO')) {
+                if (isWaitingForRedo && normalized.includes('REDO')) {
                     isWaitingForRedo = false;
                     statusBar.style.display = "none";
-                    if (val.includes('BADGE')) { badgeInput.value = ""; badgeInput.focus(); }
+                    if (normalized.includes('BADGE')) { badgeInput.value = ""; badgeInput.focus(); }
                     else { itemInput.value = ""; itemInput.focus(); }
                     return;
                 }
-                if (val.includes('CLEAR-QTY')) {
-                    currentTally = "1"; qtyBubble.value = "1"; qtyInput.value = "1";
+                if (normalized.includes('CLEAR-QTY')) {
+                    currentTally = "1";
+                    syncQtyDisplays();
                     return;
                 }
-                if (val.includes('OPEN-PAD')) { openNumPad(); return; }
-                if (val.includes('DONE-PAD')) { closeNumPad(); return; }
-                if (val.includes('NUM-') || (val.startsWith('NUM') && /\d/.test(val))) {
-                    const digit = val.match(/\d/)[0];
+                if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }
+                if (normalized.includes('DONE-PAD')) { closeNumPad(); return; }
+                if (normalized.includes('NUM-') || (normalized.startsWith('NUM') && /\d/.test(normalized))) {
+                    const digitMatch = normalized.match(/\d/);
+                    if (!digitMatch) return;
+                    const digit = digitMatch[0];
                     if (currentTally === "1" || !isEnteringNum) currentTally = digit;
                     else currentTally += digit;
-                    qtyBubble.value = currentTally;
-                    qtyInput.value = currentTally;
+                    syncQtyDisplays();
                     if (!isEnteringNum) openNumPad();
                     return;
                 }
-                if (val.includes('SUBMIT')) {
+                if (normalized.includes('SUBMIT')) {
                     if (badgeInput.value && itemInput.value) {
                         const formData = new FormData();
                         formData.append('badge', badgeInput.value);
@@ -321,13 +415,16 @@
                     return;
                 }
             } else {
-                // It is Data - Ensure it's in the box and move focus
-                const activeEl = document.activeElement;
-                if (activeEl.tagName === 'INPUT') {
-                    activeEl.value = val;
-                    if (activeEl === badgeInput) {
-                        setTimeout(() => itemInput.focus(), 10);
-                    }
+                // It is data: commit only once, to the field captured when burst started.
+                let target = targetInput;
+                if (!(target instanceof HTMLInputElement)) {
+                    if (!badgeInput.value) target = badgeInput;
+                    else if (!itemInput.value) target = itemInput;
+                }
+
+                if (target instanceof HTMLInputElement) {
+                    target.value = val;
+                    if (target === badgeInput) setTimeout(() => itemInput.focus(), 10);
                 }
             }
         }
