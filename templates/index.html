@@ -79,17 +79,21 @@
             <div class="scan-row"><input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off"><div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-REDO-ITEM"><p>REDO ITEM</p></div></div>
             <div class="qty-container">
                 <div style="text-align: right;"><p style="margin: 0; color: #888;">CURRENT<br>TALLY</p></div>
-                <div class="qty-display" id="qty-bubble">1</div>
+                <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-OPEN-PAD"><p style="color: #00ff00; font-weight: bold;">OPEN NUM PAD</p></div>
                 <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CLEAR-QTY"><p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p></div>
             </div>
             <input type="hidden" id="qty-input" name="qty" value="1">
-            <div class="qr-grid">
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-1"><p>ADD 1</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-5"><p>ADD 5</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-10"><p>ADD 10</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ADD-25"><p>ADD 25</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MULT-10"><p>MULT 10x</p></div>
-                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MULT-100"><p>MULT 100x</p></div>
+            
+            <div id="numpad-container" style="display: none; margin-top: 15px; background: #222; padding: 20px; border-radius: 15px; border: 2px solid #00ff00;">
+                <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
+                <div class="qr-grid" id="numpad-grid">
+                    {% for i in range(1, 10) %}
+                    <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-{{i}}"><p>SCAN {{i}}</p></div>
+                    {% endfor %}
+                    <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=NUM-0"><p>SCAN 0</p></div>
+                    <div class="qr-item" style="grid-column: span 2;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-DONE-PAD"><p style="color:#00ff00; font-weight:bold;">DONE / HIDE PAD</p></div>
+                </div>
             </div>
             <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
                 <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-CORRECT"><p style="color:#ff9900">CORRECT FIELD</p></div>
@@ -119,14 +123,19 @@
         const saveBtn = document.getElementById('save-btn');
         const settingsModal = document.getElementById('settings-modal');
         const modalOverlay = document.getElementById('modal-overlay');
+        const numpadContainer = document.getElementById('numpad-container');
         
         let isWaitingForRedo = false;
+        let isEnteringNum = false;
+        let currentTally = "1";
+        let lastEnterTime = 0;
+        let scanBuffer = ""; // THE MASTER BURST BUFFER
+
         let idleTime = 0;
         let ssActive = false;
         let settingsOpen = false;
         let ssLimit = parseInt(localStorage.getItem('ssLimit')) || 300; 
         
-        // DVD Physics Variables
         let posX = 0, posY = 0, dx = 4, dy = 4;
         let animationFrameId = null;
 
@@ -137,8 +146,7 @@
         };
 
         gearBtn.addEventListener('mousedown', (e) => {
-            e.stopPropagation();
-            e.preventDefault(); // Prevent focus theft from scanner inputs
+            e.stopPropagation(); e.preventDefault();
             settingsOpen = true;
             settingsModal.style.display = 'block';
             modalOverlay.style.display = 'block';
@@ -157,110 +165,172 @@
             badgeInput.focus();
         });
 
+        qtyBubble.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); openNumPad();
+        });
+
+        function openNumPad() {
+            isEnteringNum = true;
+            numpadContainer.style.display = 'block';
+            statusBar.innerText = "NUMBER ENTRY MODE";
+            statusBar.style.display = "block";
+            setTimeout(() => { qtyBubble.focus(); qtyBubble.select(); }, 100);
+        }
+
+        function closeNumPad() {
+            isEnteringNum = false;
+            numpadContainer.style.display = 'none';
+            statusBar.style.display = "none";
+            setTimeout(() => {
+                if (!badgeInput.value) badgeInput.focus();
+                else if (!itemInput.value) itemInput.focus();
+            }, 100);
+        }
+
         function ensureFocus(e) {
             if (ssActive) { stopScreensaver(); return; }
-            if (settingsOpen) return;
-
-            // Don't steal focus if user is clicking buttons or typing in settings
-            if (e && (e.target.closest('#gear-btn') || e.target.closest('#settings-modal') || e.target.tagName === 'INPUT')) return;
-
+            if (settingsOpen || isEnteringNum) return;
+            if (e && (e.target.closest('#gear-btn, #settings-modal, #qty-bubble') || e.target.tagName === 'INPUT')) return;
             if (!badgeInput.value) badgeInput.focus();
             else if (!itemInput.value) itemInput.focus();
         }
 
-        function resetIdleTimer() { 
-            idleTime = 0; 
-            if (ssActive) stopScreensaver(); 
-        }
-
-        setInterval(() => { 
-            if (!settingsOpen) { 
-                idleTime++; 
-                if (idleTime >= ssLimit && !ssActive) startScreensaver(); 
-            } 
-        }, 1000);
+        function resetIdleTimer() { idleTime = 0; if (ssActive) stopScreensaver(); }
+        setInterval(() => { if (!settingsOpen) { idleTime++; if (idleTime >= ssLimit && !ssActive) startScreensaver(); } }, 1000);
 
         function startScreensaver() {
-            ssActive = true;
-            ssOverlay.style.display = 'block';
-            // Start from a random spot so it doesn't get stuck in the corner
+            ssActive = true; ssOverlay.style.display = 'block';
             posX = Math.random() * (window.innerWidth - 200);
             posY = Math.random() * (window.innerHeight - 150);
             moveLogo();
         }
 
         function stopScreensaver() {
-            ssActive = false;
-            ssOverlay.style.display = 'none';
+            ssActive = false; ssOverlay.style.display = 'none';
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             badgeInput.focus();
         }
 
         function moveLogo() {
             if (!ssActive) return;
-
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            const logoW = ssLogo.offsetWidth || 150; // Fallback if not yet rendered
-            const logoH = ssLogo.offsetHeight || 100;
-
-            // Collision Detection
+            const winW = window.innerWidth, winH = window.innerHeight;
+            const logoW = ssLogo.offsetWidth || 150, logoH = ssLogo.offsetHeight || 100;
             if (posX + logoW >= winW || posX <= 0) dx = -dx;
             if (posY + logoH >= winH || posY <= 0) dy = -dy;
-
-            posX += dx;
-            posY += dy;
-
-            ssLogo.style.left = posX + 'px';
-            ssLogo.style.top = posY + 'px';
-            
+            posX += dx; posY += dy;
+            ssLogo.style.left = posX + 'px'; ssLogo.style.top = posY + 'px';
             animationFrameId = requestAnimationFrame(moveLogo);
         }
 
         ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => window.addEventListener(evt, resetIdleTimer));
 
+        // --- THE MASTER BURST INTERCEPTOR ---
         document.addEventListener('keydown', (e) => {
             if (settingsOpen) return;
+
+            // 1. Handle BURST completion (Enter Key)
             if (e.key === 'Enter') {
-                const activeEl = document.activeElement;
-                const val = activeEl.value.trim();
+                e.preventDefault();
+                const val = scanBuffer.trim();
+                scanBuffer = ""; // Wipe buffer for next burst
                 
-                if (val.includes('CMD-CORRECT')) {
-                    e.preventDefault(); activeEl.value = val.replace('CMD-CORRECT', '');
-                    isWaitingForRedo = true; statusBar.classList.add('correction-active'); return;
+                if (!val) return;
+
+                const now = Date.now();
+                if (now - lastEnterTime < 50) return;
+                lastEnterTime = now;
+
+                // Process the burst
+                handleBurst(val);
+                return;
+            }
+
+            // 2. Intercept burst characters
+            if (e.key.length === 1) {
+                e.preventDefault();
+                scanBuffer += e.key;
+                
+                // Only show text in field if it's NOT looking like a command burst
+                if (!scanBuffer.includes('CMD') && !scanBuffer.includes('NUM')) {
+                    const activeEl = document.activeElement;
+                    if (activeEl.tagName === 'INPUT') activeEl.value = scanBuffer;
                 }
-                if (isWaitingForRedo) {
-                    e.preventDefault(); activeEl.value = val.replace(/CMD-REDO-.*/, '');
-                    if (val.includes('CMD-REDO-BADGE')) { badgeInput.value = ''; badgeInput.focus(); }
-                    else if (val.includes('CMD-REDO-ITEM')) { itemInput.value = ''; itemInput.focus(); }
-                    isWaitingForRedo = false; statusBar.classList.remove('correction-active'); return;
+            }
+
+            // 3. Handle Backspace manually for the buffer
+            if (e.key === 'Backspace') {
+                scanBuffer = scanBuffer.slice(0, -1);
+                const activeEl = document.activeElement;
+                if (activeEl.tagName === 'INPUT') activeEl.value = scanBuffer;
+            }
+        });
+
+        // Reset buffer if user clicks manually into a different field
+        document.addEventListener('mousedown', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                scanBuffer = e.target.value;
+            }
+        });
+
+        function handleBurst(val) {
+            // Flexible detection for commands (handles missing hyphens)
+            const isCommand = val.includes('CMD') || val.includes('NUM');
+
+            if (isCommand) {
+                statusBar.innerText = "COMMAND: " + val;
+                statusBar.style.display = "block";
+
+                if (val.includes('CORRECT')) {
+                    isWaitingForRedo = true;
+                    statusBar.innerText = "CORRECTION MODE: SCAN REDO";
+                    return;
                 }
-                if (val.includes('ADD-')) {
-                    e.preventDefault(); qtyInput.value = parseInt(qtyInput.value) + parseInt(val.split('-')[1]);
-                    qtyBubble.innerText = qtyInput.value; activeEl.value = val.replace(/ADD-.*/, ''); return;
+                if (isWaitingForRedo && val.includes('REDO')) {
+                    isWaitingForRedo = false;
+                    statusBar.style.display = "none";
+                    if (val.includes('BADGE')) { badgeInput.value = ""; badgeInput.focus(); }
+                    else { itemInput.value = ""; itemInput.focus(); }
+                    return;
                 }
-                if (val.includes('MULT-')) {
-                    e.preventDefault(); qtyInput.value = parseInt(qtyInput.value) * parseInt(val.split('-')[1]);
-                    qtyBubble.innerText = qtyInput.value; activeEl.value = val.replace(/MULT-.*/, ''); return;
+                if (val.includes('CLEAR-QTY')) {
+                    currentTally = "1"; qtyBubble.value = "1"; qtyInput.value = "1";
+                    return;
                 }
-                if (val.includes('CMD-CLEAR-QTY')) {
-                    e.preventDefault(); qtyInput.value = 1; qtyBubble.innerText = 1;
-                    activeEl.value = val.replace('CMD-CLEAR-QTY', ''); return;
+                if (val.includes('OPEN-PAD')) { openNumPad(); return; }
+                if (val.includes('DONE-PAD')) { closeNumPad(); return; }
+                if (val.includes('NUM-') || (val.startsWith('NUM') && /\d/.test(val))) {
+                    const digit = val.match(/\d/)[0];
+                    if (currentTally === "1" || !isEnteringNum) currentTally = digit;
+                    else currentTally += digit;
+                    qtyBubble.value = currentTally;
+                    qtyInput.value = currentTally;
+                    if (!isEnteringNum) openNumPad();
+                    return;
                 }
-                if (val.includes('CMD-SUBMIT')) {
-                    e.preventDefault(); activeEl.value = val.replace('CMD-SUBMIT', '');
-                    if(badgeInput.value && itemInput.value) {
+                if (val.includes('SUBMIT')) {
+                    if (badgeInput.value && itemInput.value) {
                         const formData = new FormData();
                         formData.append('badge', badgeInput.value);
                         formData.append('item', itemInput.value);
-                        formData.append('qty', qtyInput.value);
+                        formData.append('qty', currentTally);
                         fetch('/scan', { method: 'POST', body: formData }).then(() => window.location.reload());
+                    } else {
+                        statusBar.innerText = "ERROR: MISSING DATA";
+                        statusBar.style.display = "block";
                     }
                     return;
                 }
-                if (activeEl === badgeInput && val.length > 0) itemInput.focus();
+            } else {
+                // It is Data - Ensure it's in the box and move focus
+                const activeEl = document.activeElement;
+                if (activeEl.tagName === 'INPUT') {
+                    activeEl.value = val;
+                    if (activeEl === badgeInput) {
+                        setTimeout(() => itemInput.focus(), 10);
+                    }
+                }
             }
-        });
+        }
     </script>
 </body>
 </html>
