@@ -61,8 +61,10 @@ def require_login_for_app():
     # Lock down port 5000 with browser-level auth challenge.
     if request.path.startswith('/static/'):
         return None
-    # Allow local kiosk browser (Cog) on the Pi to load without auth prompt UI issues.
-    if request.remote_addr in ('127.0.0.1', '::1'):
+    # Allow only true local-direct requests (no reverse-proxy hop) to bypass auth.
+    # If X-Forwarded-For is present, the request came through nginx and should be challenged.
+    forwarded_for = (request.headers.get('X-Forwarded-For') or '').strip()
+    if request.remote_addr in ('127.0.0.1', '::1') and not forwarded_for:
         return None
     if not has_valid_basic_auth():
         return basic_auth_challenge()
