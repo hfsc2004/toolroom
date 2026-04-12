@@ -48,4 +48,4 @@ sleep 3
 # Launch kiosk — cage is the sole compositor in direct boot mode.
 # When cage exits, the EXIT trap fires and kills gunicorn.
 echo "Launching Kiosk UI..."
-cage -- cog http://localhost:5000
+cage -s -- cog http://localhost:5000

@@ -60,6 +60,7 @@ if [ ! -f "$INSTALL_DIR/data/inventory.db" ]; then
 else
     echo "    Database already exists, skipping."
 fi
+# Users table is auto-created by app.py on first run (with default admin account)
 
 # 6. Configure TTY1 autologin
 echo "[6/8] Configuring auto-login on TTY1..."
