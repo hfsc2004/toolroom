@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #0f1113; color: #f5f5f5; }
+        .wrap { width: min(1200px, 96vw); margin: 20px auto; }
+        .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .top h1 { margin: 0; font-size: 1.5rem; }
+        .meta { color: #9bb3c7; font-size: 0.95rem; }
+        .btn { display: inline-block; padding: 10px 12px; border-radius: 8px; text-decoration: none; border: 0; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: #00b86b; color: #04140b; }
+        .btn-secondary { background: #2b3642; color: #dbe8f6; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 14px; }
+        .card { background: #161a1f; border: 1px solid #2b3138; border-radius: 10px; padding: 14px; }
+        .card h2 { margin: 0 0 8px; font-size: 1.05rem; }
+        table { width: 100%; border-collapse: collapse; background: #161a1f; border: 1px solid #2b3138; border-radius: 10px; overflow: hidden; }
+        th, td { border-bottom: 1px solid #252b31; padding: 8px; text-align: left; font-size: 0.92rem; }
+        th { color: #b7c8d9; }
+        form { margin: 0; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="top">
+            <div>
+                <h1>Backend Dashboard</h1>
+                <div class="meta">Signed in as {{ admin_user }}</div>
+            </div>
+            <form method="post" action="{{ url_for('admin_logout') }}">
+                <button class="btn btn-secondary" type="submit">Sign Out</button>
+            </form>
+        </div>
+
+        <div class="cards">
+            <div class="card">
+                <h2>Export</h2>
+                <p>Download logs for reporting.</p>
+                <a class="btn btn-primary" href="{{ url_for('export') }}">Download CSV</a>
+            </div>
+            <div class="card">
+                <h2>Users (Stub)</h2>
+                <p>Future user/account manager space.</p>
+                <a class="btn btn-secondary" href="{{ url_for('admin_users') }}">Open User Manager</a>
+            </div>
+            <div class="card">
+                <h2>Quick Stats</h2>
+                <p>Total rows logged: <strong>{{ total_logs }}</strong></p>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr>
+            </thead>
+            <tbody>
+                {% for scan in recent_scans %}
+                <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

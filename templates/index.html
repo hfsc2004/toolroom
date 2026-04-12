@@ -73,6 +73,46 @@
             text-align: center;
         }
         #numpad-grid { grid-template-columns: repeat(4, minmax(90px, 1fr)); }
+        #log-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            z-index: 99991;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+        }
+        #log-container {
+            width: min(1080px, 97vw);
+            max-height: 90vh;
+            overflow: auto;
+            overscroll-behavior: contain;
+            background: #1f1f1f;
+            border: 2px solid #00ff00;
+            border-radius: 14px;
+            box-sizing: border-box;
+            padding: 12px;
+        }
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .log-title { color: #00ff00; font-size: 1.4rem; margin: 0; }
+        .log-close {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        .log-tools { display: flex; justify-content: center; margin: 8px 0 10px; }
+        .log-table { width: 100%; margin-top: 0; border-collapse: collapse; }
 
         table { width: 100%; margin-top: 20px; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 8px; font-size: 1rem; }
@@ -150,18 +190,30 @@
                 </div>
             </div>
             <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
+                <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-OPEN-LOG"><p style="color:#8fd3ff; font-weight:bold;">VIEW LOG</p></div>
                 <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-SUBMIT"><p style="color:#00ff00; font-weight:bold;">FINISH & LOG</p></div>
             </div>
         </form>
 
-        <table>
-            <thead><tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr></thead>
-            <tbody>
-                {% for scan in scans %}
-                <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div id="log-overlay">
+            <div id="log-container">
+                <div class="log-header">
+                    <h3 class="log-title">Recent Scan Log</h3>
+                    <button type="button" id="close-log-btn" class="log-close">CLOSE</button>
+                </div>
+                <div class="log-tools">
+                    <div class="qr-item"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=CMD-DONE-LOG"><p style="color:#00ff00; font-weight:bold;">DONE / CLOSE LOG</p></div>
+                </div>
+                <table class="log-table">
+                    <thead><tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr></thead>
+                    <tbody>
+                        {% for scan in scans %}
+                        <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -178,6 +230,9 @@
         const settingsModal = document.getElementById('settings-modal');
         const modalOverlay = document.getElementById('modal-overlay');
         const numpadOverlay = document.getElementById('numpad-overlay');
+        const logOverlay = document.getElementById('log-overlay');
+        const logContainer = document.getElementById('log-container');
+        const closeLogBtn = document.getElementById('close-log-btn');
         
         let isEnteringNum = false;
         let currentTally = "1";
@@ -269,6 +324,30 @@
             }, 100);
         }
 
+        function openLogOverlay() {
+            logOverlay.style.display = 'flex';
+            statusBar.style.display = 'none';
+        }
+
+        function closeLogOverlay() {
+            logOverlay.style.display = 'none';
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        closeLogBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeLogOverlay();
+        });
+
+        // Force wheel scrolling into the log panel while overlay is open.
+        logOverlay.addEventListener('wheel', (e) => {
+            if (logOverlay.style.display !== 'flex') return;
+            e.preventDefault();
+            logContainer.scrollTop += e.deltaY;
+        }, { passive: false });
+
         function syncQtyDisplays(sourceEl) {
             if (sourceEl !== qtyBubble) qtyBubble.value = currentTally;
             if (sourceEl !== overlayTallyValue) overlayTallyValue.value = currentTally;
@@ -308,7 +387,7 @@
 
         function ensureFocus(e) {
             if (ssActive) { stopScreensaver(); return; }
-            if (settingsOpen || isEnteringNum) return;
+            if (settingsOpen || isEnteringNum || logOverlay.style.display === 'flex') return;
             if (e && (e.target.closest('#gear-btn, #settings-modal, #qty-bubble') || e.target.tagName === 'INPUT')) return;
             if (!badgeInput.value) badgeInput.focus();
             else if (!itemInput.value) itemInput.focus();
@@ -459,6 +538,8 @@
                     syncQtyDisplays();
                     return;
                 }
+                if (normalized.includes('OPEN-LOG')) { openLogOverlay(); return; }
+                if (normalized.includes('DONE-LOG') || normalized.includes('CLOSE-LOG')) { closeLogOverlay(); return; }
                 if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }
                 if (normalized.includes('DONE-PAD')) { closeNumPad(); return; }
                 if (normalized.includes('NUM-') || (normalized.startsWith('NUM') && /\d/.test(normalized))) {
