@@ -10,7 +10,8 @@ Workers scan their badge, scan a tool, and the transaction is logged. Runs fulls
 - **Quantity workflow** with numpad overlay and multi-digit scanning
 - **Correction commands** (REDO BADGE, REDO ITEM)
 - **Log overlay** with scroll support
-- **Admin dashboard** with login, CSV export, and user management stub
+- **Admin dashboard** with login, CSV export, and user manager
+- **DB-backed user accounts** — create, edit, deactivate, and delete admin/operator accounts
 - **HTTP Basic Auth** for remote access, local kiosk bypasses auth automatically
 - **HTTPS ready** via nginx reverse proxy with local CA
 
@@ -72,8 +73,10 @@ All management is done via SSH.
 
 The kiosk UI is also accessible from other devices on the network. With nginx configured:
 
-- `https://<pi-ip>/` — requires HTTP Basic Auth (default: admin / change-me)
-- Set credentials via environment variables: `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+- `https://<pi-ip>/` — requires HTTP Basic Auth
+- Default login: **admin** / **change-me** — change this immediately in the User Manager
+- Admin dashboard: `https://<pi-ip>/admin`
+- User Manager: `https://<pi-ip>/admin/users` — add, edit, deactivate, or delete accounts
 
 ## Project Structure
 
@@ -86,7 +89,7 @@ The kiosk UI is also accessible from other devices on the network. With nginx co
 │   ├── index.html
 │   ├── admin_dashboard.html
 │   ├── admin_login.html
-│   └── admin_users_stub.html
+│   └── admin_users.html
 ├── static/             # CSS, JS, images
 └── data/               # Created at runtime (gitignored)
     ├── inventory.db
