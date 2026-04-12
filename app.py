@@ -37,7 +37,7 @@ def init_users_table():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
     # Seed default admin if table is empty
-    count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+    count = conn.execute('SELECT COUNT(*) as cnt FROM users').fetchone()['cnt']
     if count == 0:
         conn.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
                      ('admin', generate_password_hash('change-me'), 'admin'))
