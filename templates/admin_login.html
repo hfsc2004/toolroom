@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #121212; color: #f5f5f5; display: grid; place-items: center; min-height: 100vh; }
+        .card { width: min(420px, 92vw); background: #1e1e1e; border: 1px solid #2f2f2f; border-radius: 12px; padding: 20px; }
+        h1 { margin: 0 0 12px; font-size: 1.4rem; }
+        label { display: block; margin: 12px 0 6px; color: #b9b9b9; }
+        input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #0d0d0d; color: #fff; }
+        button { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: #00b86b; color: #05140b; font-weight: bold; cursor: pointer; }
+        .error { margin-top: 10px; color: #ff6b6b; }
+        .hint { margin-top: 12px; color: #999; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <form class="card" method="post">
+        <h1>Backend Dashboard Login</h1>
+        <input type="hidden" name="next" value="{{ next_path }}">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Sign In</button>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <div class="hint">Set ADMIN_USERNAME and ADMIN_PASSWORD in environment for production.</div>
+    </form>
+</body>
+</html>

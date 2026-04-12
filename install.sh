@@ -15,16 +15,21 @@ if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-./venv/bin/pip install --upgrade pip
+./venv/bin/python -m ensurepip --upgrade
+./venv/bin/python -m pip install --upgrade pip setuptools wheel
 
 # Install from the requirements file
 if [ -f "requirements.txt" ]; then
     echo "Installing Python packages from requirements.txt..."
-    ./venv/bin/pip install -r requirements.txt
+    ./venv/bin/python -m pip install -r requirements.txt
 else
     echo "Error: requirements.txt not found!"
     exit 1
 fi
+
+# Verify critical runtime dependencies are present
+./venv/bin/python -m gunicorn --version >/dev/null
+./venv/bin/python -c "import flask" >/dev/null
 
 # Directory and DB Setup
 mkdir -p data
