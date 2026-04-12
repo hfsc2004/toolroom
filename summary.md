@@ -19,20 +19,16 @@
 - **User Manager Stub Added:** Backend-only placeholder page for future kiosk/admin account management.
 - **HTTP Basic Auth Gate Added:** Port access challenge implemented with local kiosk bypass logic for reverse-proxy scenarios.
 
-## Deployment / Runtime Changes
-- **Installer Hardening (`install.sh`):**
-  - Uses `python -m pip`/`ensurepip` path-safe flow.
-  - Verifies Flask/Gunicorn availability after install.
-- **Startup Hardening (`start.sh`):**
-  - Uses `python -m gunicorn`.
-  - Auto-heals venv/pip/dependencies when needed.
-  - Binds backend to `127.0.0.1:5000` for reverse-proxy mode.
-  - Includes aggressive stop/cleanup routines.
+## Deployment / Runtime
+- **One-command install:** `sudo ./install.sh` handles everything — system deps, Python venv, database init, `toolroom` user creation, TTY1 autologin, boot target, and kiosk auto-start.
+- **Direct boot kiosk:** Pi boots to TTY1, auto-logs in as `toolroom`, `start.sh` launches cage+cog as the sole Wayland compositor. No desktop environment.
+- **Clean shutdown:** `start.sh` uses a bash EXIT trap — when cage exits (power button, `systemctl stop getty@tty1`), gunicorn is killed automatically.
+- **Gunicorn** binds to `127.0.0.1:5000` (localhost only, for reverse-proxy via nginx).
+- **Management via SSH:**
+  - Stop kiosk: `sudo systemctl stop getty@tty1`
+  - Restart kiosk: `sudo systemctl restart getty@tty1`
+  - Restore desktop: `sudo systemctl set-default graphical.target && sudo reboot`
 
 ## HTTPS Status
 - Local CA-based HTTPS setup has been completed on the Pi side (no Let's Encrypt).
 - Nginx reverse proxy now fronts the app; direct `:5000` exposure is no longer required externally.
-
-## Open Issue
-- **Kiosk close behavior is still not fully deterministic:** closing with window `X` does not always terminate all backend processes; `Ctrl+C` reliably triggers cleanup.
-- Current focus area: ensure cage/cog lifecycle reliably triggers backend shutdown without manual interrupt.

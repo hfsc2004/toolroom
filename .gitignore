@@ -1,6 +1,7 @@
 venv/
+venv.broken*/
 __pycache__/
 *.pyc
-data/inventory.db
-data/app.log
+data/
 .DS_Store
+.codex/
