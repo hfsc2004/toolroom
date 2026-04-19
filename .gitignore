@@ -9,3 +9,4 @@ data/
 .claude.LOCAL_BACKUP/
 *.xlsx
 import_workers.py
+seed_sample_items.py
