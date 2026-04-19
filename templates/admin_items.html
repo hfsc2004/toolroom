@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Manager</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #101214; color: #f4f4f4; }
+        .wrap { width: min(1100px, 96vw); margin: 24px auto; }
+        .panel { background: #171b20; border: 1px solid #2e353d; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        h1 { margin-top: 0; font-size: 1.4rem; }
+        h2 { margin: 0 0 12px; font-size: 1.1rem; }
+        .back { display: inline-block; margin-bottom: 14px; color: #99cdfc; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #252b31; padding: 10px 8px; text-align: left; font-size: 0.92rem; vertical-align: middle; }
+        th { color: #b7c8d9; }
+        .mono { font-family: monospace; color: #9bb3c7; }
+        input, select { padding: 8px; border-radius: 6px; border: 1px solid #444; background: #0d0d0d; color: #fff; }
+        input[type="text"] { width: 180px; }
+        .btn { padding: 8px 14px; border-radius: 6px; border: 0; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+        .btn-add { background: #00b86b; color: #04140b; }
+        .btn-save { background: #3b82f6; color: #fff; }
+        .btn-delete { background: #991b1b; color: #fca5a5; }
+        .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; }
+        .flash-success { background: #1a3a2a; color: #4ade80; border: 1px solid #2d5a3d; }
+        .flash-error { background: #3a1a1a; color: #f87171; border: 1px solid #5a2d2d; }
+        .form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .muted { color: #7a8a9a; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <a class="back" href="{{ url_for('admin_dashboard') }}">Back to dashboard</a>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endwith %}
+
+        <div class="panel">
+            <h1>Item Manager</h1>
+            <p class="muted">Item code is what the QR encodes. Leave it blank on Add to auto-generate (ITM-00001, ...). Existing scans that don't match a known code still log, but show as "[Unknown]" — register them here to make them legit.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item Code</th>
+                        <th>Name</th>
+                        <th>Part Number</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for i in items %}
+                    <tr>
+                        <form method="post" action="{{ url_for('admin_items_edit', item_id=i['id']) }}">
+                        <td class="mono">{{ i['item_code'] }}</td>
+                        <td><input type="text" name="name" value="{{ i['name'] }}"></td>
+                        <td><input type="text" name="part_number" value="{{ i['part_number'] or '' }}" placeholder="—" style="width: 140px;"></td>
+                        <td>
+                            <select name="is_active">
+                                <option value="1" {{ 'selected' if i['is_active'] }}>Active</option>
+                                <option value="0" {{ 'selected' if not i['is_active'] }}>Inactive</option>
+                            </select>
+                        </td>
+                        <td>{{ i['created_at'][:16] if i['created_at'] else '' }}</td>
+                        <td><button type="submit" class="btn btn-save">Save</button></td>
+                        </form>
+                        <td>
+                            <form method="post" action="{{ url_for('admin_items_delete', item_id=i['id']) }}"
+                                  onsubmit="return confirm('Delete {{ i.name }}? Item code will be gone permanently.')">
+                                <button type="submit" class="btn btn-delete">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel">
+            <h2>Add Item</h2>
+            <form method="post" action="{{ url_for('admin_items_add') }}">
+                <div class="form-row">
+                    <input type="text" name="item_code" placeholder="Item Code (blank = auto)" style="width: 220px;">
+                    <input type="text" name="name" placeholder="Name (required)" required>
+                    <input type="text" name="part_number" placeholder="Part Number (optional)">
+                    <button type="submit" class="btn btn-add">Add Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

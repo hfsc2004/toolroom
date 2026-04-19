@@ -23,6 +23,14 @@
         .scan-row { display: flex; align-items: center; justify-content: space-between; background: #1e1e1e; padding: 15px; margin-bottom: 10px; border: 2px solid #333; border-radius: 15px; }
         input { flex-grow: 1; font-size: 2rem; padding: 12px; background: #000; color: #00ff00; border: 2px solid #444; margin-right: 15px; }
         input:focus { border-color: #00ff00; outline: none; border-width: 4px; }
+        .resolved {
+            flex-grow: 0; min-width: 220px; max-width: 260px; margin-right: 15px;
+            padding: 8px 10px; border-radius: 8px; font-size: 0.95rem; line-height: 1.2;
+            background: #0d0d0d; color: #9bb3c7; border: 1px solid #333; text-align: center;
+        }
+        .resolved.known { color: #4ade80; border-color: #2d5a3d; background: #112418; }
+        .resolved.unknown { color: #f87171; border-color: #5a2d2d; background: #241111; }
+        .resolved .sub { display: block; font-size: 0.75rem; color: #7a8a9a; margin-top: 2px; }
 
         .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
         .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
@@ -117,8 +125,8 @@
         table { width: 100%; margin-top: 20px; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 8px; font-size: 1rem; }
 
-        /* Workers overlay */
-        #workers-overlay {
+        /* Workers/Items overlays */
+        #workers-overlay, #items-overlay {
             position: fixed;
             inset: 0;
             background: rgba(0, 0, 0, 0.9);
@@ -128,7 +136,7 @@
             justify-content: center;
             padding: 14px;
         }
-        #workers-container {
+        #workers-container, #items-container {
             width: min(1200px, 97vw);
             max-height: 94vh;
             overflow: auto;
@@ -140,6 +148,7 @@
             padding: 14px 18px;
             margin-top: 2vh;
         }
+        #items-container { border-color: #ffae6b; }
         .workers-header {
             display: flex; align-items: center; justify-content: space-between;
             gap: 12px; margin-bottom: 10px; position: sticky; top: 0;
@@ -162,18 +171,19 @@
         }
         .workers-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-            gap: 10px;
-            margin-bottom: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 28px 22px;
+            margin-bottom: 16px;
         }
         .worker-tile {
             background: #222; border: 1px solid #2a3a2a; border-radius: 10px;
-            padding: 8px 6px 6px; text-align: center; cursor: pointer; user-select: none;
+            padding: 10px 6px 8px; text-align: center; cursor: pointer; user-select: none;
         }
         .worker-tile canvas {
-            width: 96px; height: 96px; border: 3px solid #fff;
-            border-radius: 6px; display: block; margin: 0 auto 4px;
+            width: 120px; height: 120px; border: 8px solid #fff;
+            border-radius: 6px; display: block; margin: 0 auto 6px;
             image-rendering: pixelated;
+            background: #fff;
         }
         .worker-tile p {
             margin: 0; color: #d4e9d4; font-size: 0.82rem; font-weight: 600;
@@ -224,8 +234,16 @@
         </div>
         
         <form id="scan-form" onsubmit="return false;">
-            <div class="scan-row"><input type="text" id="badge" name="badge" placeholder="1. SCAN BADGE" autocomplete="off"><div class="qr-item"><canvas data-qr="CMD-REDO-BADGE"></canvas><p>REDO BADGE</p></div></div>
-            <div class="scan-row"><input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off"><div class="qr-item"><canvas data-qr="CMD-REDO-ITEM"></canvas><p>REDO ITEM</p></div></div>
+            <div class="scan-row">
+                <input type="text" id="badge" name="badge" placeholder="1. SCAN BADGE" autocomplete="off">
+                <div id="badge-resolved" class="resolved"></div>
+                <div class="qr-item"><canvas data-qr="CMD-REDO-BADGE"></canvas><p>REDO BADGE</p></div>
+            </div>
+            <div class="scan-row">
+                <input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off">
+                <div id="item-resolved" class="resolved"></div>
+                <div class="qr-item"><canvas data-qr="CMD-REDO-ITEM"></canvas><p>REDO ITEM</p></div>
+            </div>
             <div class="qty-container">
                 <div style="text-align: right;"><p style="margin: 0; color: #888;">Qty</p></div>
                 <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
@@ -260,6 +278,7 @@
             </div>
             <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
                 <div class="qr-item"><canvas data-qr="CMD-OPEN-WORKERS"></canvas><p style="color:#ffd86b; font-weight:bold;">WORKERS</p></div>
+                <div class="qr-item"><canvas data-qr="CMD-OPEN-ITEMS"></canvas><p style="color:#ffae6b; font-weight:bold;">ITEMS</p></div>
                 <div class="qr-item"><canvas data-qr="CMD-OPEN-LOG"></canvas><p style="color:#8fd3ff; font-weight:bold;">VIEW LOG</p></div>
                 <div class="qr-item"><canvas data-qr="CMD-SUBMIT"></canvas><p style="color:#00ff00; font-weight:bold;">FINISH & LOG</p></div>
             </div>
@@ -310,6 +329,51 @@
             </div>
         </div>
 
+        <div id="items-overlay">
+            <div id="items-container">
+                <div class="workers-header">
+                    <h3 class="workers-title" style="color:#ffae6b;">Items</h3>
+                    <input type="text" id="items-search" placeholder="Type to filter..." autocomplete="off">
+                    <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-ITEMS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
+                </div>
+
+                {% if recent_items %}
+                <div class="workers-section-title">Recent</div>
+                <div class="workers-grid">
+                    {% for i in recent_items %}
+                    <div class="worker-tile item-tile" data-name="{{ i['name']|lower }}" data-code="{{ i['item_code']|lower }}">
+                        <canvas data-qr="{{ i['item_code'] }}"></canvas>
+                        <p>{{ i['name'] }}</p>
+                        <p class="badge-id">{{ i['item_code'] }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="workers-section-title">All Items</div>
+                {% if items %}
+                    {% set ns = namespace(letter='') %}
+                    {% for i in items %}
+                        {% set first = i['name'][0]|upper %}
+                        {% if first != ns.letter %}
+                            {% if not loop.first %}</div>{% endif %}
+                            {% set ns.letter = first %}
+                            <div class="workers-letter" style="background:#3a2a00; color:#ffae6b;">{{ first }}</div>
+                            <div class="workers-grid">
+                        {% endif %}
+                        <div class="worker-tile item-tile" data-name="{{ i['name']|lower }}" data-code="{{ i['item_code']|lower }}">
+                            <canvas data-qr="{{ i['item_code'] }}"></canvas>
+                            <p>{{ i['name'] }}</p>
+                            <p class="badge-id">{{ i['item_code'] }}</p>
+                        </div>
+                        {% if loop.last %}</div>{% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="workers-empty">No items yet. Add them in the admin Item Manager.</div>
+                {% endif %}
+            </div>
+        </div>
+
         <div id="log-overlay">
             <div id="log-container">
                 <div class="log-header">
@@ -322,8 +386,13 @@
                 <table class="log-table">
                     <thead><tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr></thead>
                     <tbody>
-                        {% for scan in scans %}
-                        <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
+                        {% for s in scans %}
+                        <tr>
+                            <td>{{ s['timestamp'] }}</td>
+                            <td>{{ s['worker_name'] or '[Unknown]' }}</td>
+                            <td>{{ s['item_name'] or '[Unknown]' }}</td>
+                            <td>{{ s['qty'] }}</td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -350,6 +419,10 @@
         const closeLogBtn = document.getElementById('close-log-btn');
         const workersOverlay = document.getElementById('workers-overlay');
         const workersSearch = document.getElementById('workers-search');
+        const itemsOverlay = document.getElementById('items-overlay');
+        const itemsSearch = document.getElementById('items-search');
+        const badgeResolved = document.getElementById('badge-resolved');
+        const itemResolved = document.getElementById('item-resolved');
         
         let isEnteringNum = false;
         let currentTally = "1";
@@ -513,6 +586,72 @@
 
         workersSearch.addEventListener('input', () => filterWorkers(workersSearch.value));
 
+        function openItemsOverlay() {
+            itemsOverlay.style.display = 'flex';
+            statusBar.style.display = 'none';
+            itemsSearch.value = '';
+            filterItems('');
+            setTimeout(() => itemsSearch.focus(), 80);
+        }
+
+        function closeItemsOverlay() {
+            itemsOverlay.style.display = 'none';
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        function filterItems(query) {
+            const q = (query || '').trim().toLowerCase();
+            document.querySelectorAll('#items-overlay .item-tile').forEach(tile => {
+                const name = tile.getAttribute('data-name') || '';
+                const code = tile.getAttribute('data-code') || '';
+                const match = !q || name.includes(q) || code.includes(q);
+                tile.classList.toggle('worker-hidden', !match);
+            });
+        }
+
+        itemsSearch.addEventListener('input', () => filterItems(itemsSearch.value));
+
+        // Clear the resolved name if the operator manually edits an input.
+        badgeInput.addEventListener('input', () => clearResolved(badgeResolved));
+        itemInput.addEventListener('input', () => clearResolved(itemResolved));
+
+        // --- Name resolution (kiosk visual confirmation after a scan) ---
+        function setResolvedKnown(el, name, sub) {
+            el.className = 'resolved known';
+            el.innerHTML = name + (sub ? '<span class="sub">' + sub + '</span>' : '');
+        }
+        function setResolvedUnknown(el) {
+            el.className = 'resolved unknown';
+            el.innerHTML = '[Unknown]<span class="sub">not registered</span>';
+        }
+        function clearResolved(el) {
+            el.className = 'resolved';
+            el.innerHTML = '';
+        }
+
+        async function resolveBadge(code) {
+            if (!code) { clearResolved(badgeResolved); return; }
+            try {
+                const r = await fetch('/api/lookup?badge=' + encodeURIComponent(code));
+                const j = await r.json();
+                if (j.known) setResolvedKnown(badgeResolved, j.name);
+                else setResolvedUnknown(badgeResolved);
+            } catch (_) { /* offline fallback: leave as-is */ }
+        }
+
+        async function resolveItem(code) {
+            if (!code) { clearResolved(itemResolved); return; }
+            try {
+                const r = await fetch('/api/lookup?item=' + encodeURIComponent(code));
+                const j = await r.json();
+                if (j.known) {
+                    const sub = j.part_number ? ('P/N ' + j.part_number) : '';
+                    setResolvedKnown(itemResolved, j.name, sub);
+                } else setResolvedUnknown(itemResolved);
+            } catch (_) { /* offline fallback */ }
+        }
+
         // Force wheel scrolling into the log panel while overlay is open.
         logOverlay.addEventListener('wheel', (e) => {
             if (logOverlay.style.display !== 'flex') return;
@@ -542,6 +681,16 @@
         // Let operators use mouse/touch on QR tiles instead of scanning.
         document.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const itemTile = e.target.closest('.item-tile');
+            if (itemTile) {
+                const code = itemTile.querySelector('canvas[data-qr]')?.getAttribute('data-qr');
+                if (!code) return;
+                e.preventDefault();
+                e.stopPropagation();
+                closeItemsOverlay();
+                handleBurst(code, itemInput);
+                return;
+            }
             const workerTile = e.target.closest('.worker-tile');
             if (workerTile) {
                 const badge = workerTile.querySelector('canvas[data-qr]')?.getAttribute('data-qr');
@@ -563,7 +712,10 @@
 
         function ensureFocus(e) {
             if (ssActive) { stopScreensaver(); return; }
-            if (settingsOpen || isEnteringNum || logOverlay.style.display === 'flex' || workersOverlay.style.display === 'flex') return;
+            if (settingsOpen || isEnteringNum ||
+                logOverlay.style.display === 'flex' ||
+                workersOverlay.style.display === 'flex' ||
+                itemsOverlay.style.display === 'flex') return;
             if (e && (e.target.closest('#gear-btn, #settings-modal, #qty-bubble') || e.target.tagName === 'INPUT')) return;
             if (!badgeInput.value) badgeInput.focus();
             else if (!itemInput.value) itemInput.focus();
@@ -704,8 +856,15 @@
 
                 if (normalized.includes('REDO')) {
                     statusBar.style.display = "none";
-                    if (normalized.includes('BADGE')) { badgeInput.value = ""; badgeInput.focus(); }
-                    else { itemInput.value = ""; itemInput.focus(); }
+                    if (normalized.includes('BADGE')) {
+                        badgeInput.value = "";
+                        clearResolved(badgeResolved);
+                        badgeInput.focus();
+                    } else {
+                        itemInput.value = "";
+                        clearResolved(itemResolved);
+                        itemInput.focus();
+                    }
                     return;
                 }
                 if (normalized.includes('CLEAR-QTY')) {
@@ -718,6 +877,8 @@
                 if (normalized.includes('DONE-LOG') || normalized.includes('CLOSE-LOG')) { closeLogOverlay(); return; }
                 if (normalized.includes('OPEN-WORKERS')) { openWorkersOverlay(); return; }
                 if (normalized.includes('DONE-WORKERS') || normalized.includes('CLOSE-WORKERS')) { closeWorkersOverlay(); return; }
+                if (normalized.includes('OPEN-ITEMS')) { openItemsOverlay(); return; }
+                if (normalized.includes('DONE-ITEMS') || normalized.includes('CLOSE-ITEMS')) { closeItemsOverlay(); return; }
                 if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }
                 if (normalized.includes('DONE-PAD')) { closeNumPad(); return; }
                 if (normalized.includes('NUM-') || (normalized.startsWith('NUM') && /\d/.test(normalized))) {
@@ -750,9 +911,16 @@
                 }
             } else {
                 // It is data: commit only once, to the field captured when burst started.
-                // Workers overlay is a common path to scan a badge — auto-close it on data commit.
                 const workersWasOpen = workersOverlay.style.display === 'flex';
+                const itemsWasOpen = itemsOverlay.style.display === 'flex';
                 let target = targetInput;
+                // Scans from inside a grid search box route to the intended field:
+                //   Workers overlay -> badge field; Items overlay -> item field.
+                if (target === workersSearch || workersWasOpen) {
+                    target = badgeInput;
+                } else if (target === itemsSearch || itemsWasOpen) {
+                    target = itemInput;
+                }
                 if (!(target instanceof HTMLInputElement)) {
                     if (!badgeInput.value) target = badgeInput;
                     else if (!itemInput.value) target = itemInput;
@@ -760,8 +928,22 @@
 
                 if (target instanceof HTMLInputElement) {
                     target.value = val;
-                    if (workersWasOpen) closeWorkersOverlay();
-                    if (target === badgeInput) setTimeout(() => itemInput.focus(), 10);
+                    if (workersWasOpen) {
+                        workersSearch.value = '';
+                        filterWorkers('');
+                        closeWorkersOverlay();
+                    }
+                    if (itemsWasOpen) {
+                        itemsSearch.value = '';
+                        filterItems('');
+                        closeItemsOverlay();
+                    }
+                    if (target === badgeInput) {
+                        resolveBadge(val);
+                        setTimeout(() => itemInput.focus(), 10);
+                    } else if (target === itemInput) {
+                        resolveItem(val);
+                    }
                 }
             }
         }
