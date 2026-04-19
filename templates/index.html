@@ -789,6 +789,15 @@
             return badgeInput;
         }
 
+        // --- Admin hotkey: Ctrl+Shift+A jumps straight to the admin login ---
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                window.location.href = '/admin';
+            }
+        }, true);
+
         // --- MASTER BURST INTERCEPTOR (capture phase to beat input mutation) ---
         document.addEventListener('keydown', (e) => {
             if (settingsOpen) return;
