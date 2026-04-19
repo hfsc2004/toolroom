@@ -5,3 +5,6 @@ __pycache__/
 data/
 .DS_Store
 .codex/
+.codex
+.claude.LOCAL_BACKUP/
+*.xlsx
