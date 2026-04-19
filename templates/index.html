@@ -10,10 +10,10 @@
         .header-area { display: flex; align-items: center; justify-content: center; gap: 30px; margin-bottom: 10px; position: relative; }
         .logo { max-height: 80px; width: auto; }
         
-        .settings-btn { 
-            position: absolute; right: 0; top: 10px; 
+        .settings-btn {
+            position: absolute; right: 0; top: 10px;
             background: #222; border: 1px solid #444; border-radius: 10px;
-            cursor: pointer; padding: 10px; z-index: 99999;
+            cursor: pointer; padding: 10px; z-index: 50;
         }
         .settings-btn svg { fill: #666; }
         .settings-btn:hover svg { fill: #00ff00; }
@@ -23,14 +23,19 @@
         .scan-row { display: flex; align-items: center; justify-content: space-between; background: #1e1e1e; padding: 15px; margin-bottom: 10px; border: 2px solid #333; border-radius: 15px; }
         input { flex-grow: 1; font-size: 2rem; padding: 12px; background: #000; color: #00ff00; border: 2px solid #444; margin-right: 15px; }
         input:focus { border-color: #00ff00; outline: none; border-width: 4px; }
+        /* Once a scan resolves to a known name, hide the raw code and show only the name. */
+        .scan-row.resolved-known input { display: none; }
         .resolved {
-            flex-grow: 0; min-width: 220px; max-width: 260px; margin-right: 15px;
-            padding: 8px 10px; border-radius: 8px; font-size: 0.95rem; line-height: 1.2;
-            background: #0d0d0d; color: #9bb3c7; border: 1px solid #333; text-align: center;
+            flex-grow: 1; margin-right: 15px;
+            padding: 16px 18px; border-radius: 10px; font-size: 2rem; font-weight: 700;
+            line-height: 1.15;
+            background: #0d0d0d; color: #9bb3c7; border: 2px solid #333; text-align: center;
+            display: none;
         }
+        .scan-row.resolved-known .resolved,
+        .scan-row.resolved-unknown .resolved { display: block; }
         .resolved.known { color: #4ade80; border-color: #2d5a3d; background: #112418; }
-        .resolved.unknown { color: #f87171; border-color: #5a2d2d; background: #241111; }
-        .resolved .sub { display: block; font-size: 0.75rem; color: #7a8a9a; margin-top: 2px; }
+        .resolved.unknown { color: #f87171; border-color: #5a2d2d; background: #241111; font-size: 1.2rem; }
 
         .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
         .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
@@ -617,17 +622,23 @@
         itemInput.addEventListener('input', () => clearResolved(itemResolved));
 
         // --- Name resolution (kiosk visual confirmation after a scan) ---
-        function setResolvedKnown(el, name, sub) {
+        function setResolvedKnown(el, name) {
             el.className = 'resolved known';
-            el.innerHTML = name + (sub ? '<span class="sub">' + sub + '</span>' : '');
+            el.textContent = name;
+            const row = el.closest('.scan-row');
+            if (row) { row.classList.add('resolved-known'); row.classList.remove('resolved-unknown'); }
         }
         function setResolvedUnknown(el) {
             el.className = 'resolved unknown';
-            el.innerHTML = '[Unknown]<span class="sub">not registered</span>';
+            el.textContent = '[Unknown]';
+            const row = el.closest('.scan-row');
+            if (row) { row.classList.add('resolved-unknown'); row.classList.remove('resolved-known'); }
         }
         function clearResolved(el) {
             el.className = 'resolved';
-            el.innerHTML = '';
+            el.textContent = '';
+            const row = el.closest('.scan-row');
+            if (row) row.classList.remove('resolved-known', 'resolved-unknown');
         }
 
         async function resolveBadge(code) {
@@ -645,10 +656,8 @@
             try {
                 const r = await fetch('/api/lookup?item=' + encodeURIComponent(code));
                 const j = await r.json();
-                if (j.known) {
-                    const sub = j.part_number ? ('P/N ' + j.part_number) : '';
-                    setResolvedKnown(itemResolved, j.name, sub);
-                } else setResolvedUnknown(itemResolved);
+                if (j.known) setResolvedKnown(itemResolved, j.name);
+                else setResolvedUnknown(itemResolved);
             } catch (_) { /* offline fallback */ }
         }
 
