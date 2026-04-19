@@ -8,3 +8,4 @@ data/
 .codex
 .claude.LOCAL_BACKUP/
 *.xlsx
+import_workers.py

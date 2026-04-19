@@ -45,10 +45,38 @@ def init_users_table():
     conn.close()
 
 
-# Auto-create users table on startup
+def init_workers_table():
+    """Create workers table for QR-code worker list on kiosk."""
+    conn = get_db()
+    conn.execute('''CREATE TABLE IF NOT EXISTS workers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        badge_id TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+    conn.close()
+
+
+def next_badge_id():
+    """Generate the next sequential badge ID like WKR-00001."""
+    row = query_db("SELECT badge_id FROM workers WHERE badge_id LIKE 'WKR-%' "
+                   "ORDER BY id DESC LIMIT 1", one=True)
+    if not row:
+        return 'WKR-00001'
+    try:
+        n = int(row['badge_id'].split('-')[1])
+    except (IndexError, ValueError):
+        n = 0
+    return f'WKR-{n + 1:05d}'
+
+
+# Auto-create tables on startup
 with app.app_context():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     init_users_table()
+    init_workers_table()
 
 
 def admin_required(view_func):
@@ -87,7 +115,18 @@ def require_login_for_app():
 @app.route('/')
 def index():
     recent_scans = query_db("SELECT * FROM logs ORDER BY id DESC LIMIT 10")
-    return render_template('index.html', scans=recent_scans)
+    workers = query_db("SELECT badge_id, name FROM workers WHERE is_active = 1 "
+                       "ORDER BY name COLLATE NOCASE")
+    recent_workers = query_db("""
+        SELECT w.badge_id, w.name FROM workers w
+        JOIN (SELECT badge_id, MAX(id) AS last_id FROM logs GROUP BY badge_id) l
+          ON l.badge_id = w.badge_id
+        WHERE w.is_active = 1
+        ORDER BY l.last_id DESC
+        LIMIT 8
+    """)
+    return render_template('index.html', scans=recent_scans,
+                           workers=workers, recent_workers=recent_workers)
 
 
 @app.route('/scan', methods=['POST'])
@@ -216,6 +255,56 @@ def admin_users_delete(user_id):
     query_db('DELETE FROM users WHERE id = ?', (user_id,))
     flash(f'User "{user["username"]}" deleted.', 'success')
     return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/workers')
+@admin_required
+def admin_workers():
+    workers = query_db('SELECT * FROM workers ORDER BY name COLLATE NOCASE')
+    return render_template('admin_workers.html', workers=workers)
+
+
+@app.route('/admin/workers/add', methods=['POST'])
+@admin_required
+def admin_workers_add():
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash('Name is required.', 'error')
+        return redirect(url_for('admin_workers'))
+
+    badge_id = next_badge_id()
+    query_db('INSERT INTO workers (badge_id, name) VALUES (?, ?)', (badge_id, name))
+    flash(f'Worker "{name}" created with badge {badge_id}.', 'success')
+    return redirect(url_for('admin_workers'))
+
+
+@app.route('/admin/workers/<int:worker_id>/edit', methods=['POST'])
+@admin_required
+def admin_workers_edit(worker_id):
+    worker = query_db('SELECT * FROM workers WHERE id = ?', (worker_id,), one=True)
+    if not worker:
+        flash('Worker not found.', 'error')
+        return redirect(url_for('admin_workers'))
+
+    name = request.form.get('name', '').strip() or worker['name']
+    is_active = request.form.get('is_active', '1')
+    query_db('UPDATE workers SET name = ?, is_active = ? WHERE id = ?',
+             (name, int(is_active), worker_id))
+    flash(f'Worker "{name}" updated.', 'success')
+    return redirect(url_for('admin_workers'))
+
+
+@app.route('/admin/workers/<int:worker_id>/delete', methods=['POST'])
+@admin_required
+def admin_workers_delete(worker_id):
+    worker = query_db('SELECT * FROM workers WHERE id = ?', (worker_id,), one=True)
+    if not worker:
+        flash('Worker not found.', 'error')
+        return redirect(url_for('admin_workers'))
+
+    query_db('DELETE FROM workers WHERE id = ?', (worker_id,))
+    flash(f'Worker "{worker["name"]}" deleted.', 'success')
+    return redirect(url_for('admin_workers'))
 
 
 @app.route('/edit_last', methods=['POST'])
