@@ -17,9 +17,12 @@
         .card { background: #161a1f; border: 1px solid #2b3138; border-radius: 10px; padding: 14px; }
         .card h2 { margin: 0 0 8px; font-size: 1.05rem; }
         table { width: 100%; border-collapse: collapse; background: #161a1f; border: 1px solid #2b3138; border-radius: 10px; overflow: hidden; }
-        th, td { border-bottom: 1px solid #252b31; padding: 8px; text-align: left; font-size: 0.92rem; }
+        th, td { border-bottom: 1px solid #252b31; padding: 8px; text-align: left; font-size: 0.88rem; }
         th { color: #b7c8d9; }
         form { margin: 0; }
+        .mono { font-family: monospace; color: #9bb3c7; }
+        .unknown { color: #f87171; font-style: italic; }
+        .edited { color: #fbbf24; font-size: 0.75rem; }
     </style>
 </head>
 <body>
@@ -51,6 +54,11 @@
                 <a class="btn btn-secondary" href="{{ url_for('admin_workers') }}">Open Worker Manager</a>
             </div>
             <div class="card">
+                <h2>Item Manager</h2>
+                <p>Register tools, consumables, and part numbers.</p>
+                <a class="btn btn-secondary" href="{{ url_for('admin_items') }}">Open Item Manager</a>
+            </div>
+            <div class="card">
                 <h2>Quick Stats</h2>
                 <p>Total rows logged: <strong>{{ total_logs }}</strong></p>
             </div>
@@ -58,11 +66,29 @@
 
         <table>
             <thead>
-                <tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr>
+                <tr>
+                    <th>Time</th>
+                    <th>Badge ID</th>
+                    <th>Worker</th>
+                    <th>Item Code</th>
+                    <th>Item Name</th>
+                    <th>Part #</th>
+                    <th>Qty</th>
+                    <th>Edited</th>
+                </tr>
             </thead>
             <tbody>
-                {% for scan in recent_scans %}
-                <tr><td>{{ scan[1] }}</td><td>{{ scan[2] }}</td><td>{{ scan[3] }}</td><td>{{ scan[4] }}</td></tr>
+                {% for s in recent_scans %}
+                <tr>
+                    <td>{{ s['timestamp'] }}</td>
+                    <td class="mono">{{ s['badge_id'] }}</td>
+                    <td>{% if s['worker_name'] %}{{ s['worker_name'] }}{% else %}<span class="unknown">[Unknown]</span>{% endif %}</td>
+                    <td class="mono">{{ s['item_id'] }}</td>
+                    <td>{% if s['item_name'] %}{{ s['item_name'] }}{% else %}<span class="unknown">[Unknown]</span>{% endif %}</td>
+                    <td class="mono">{{ s['part_number'] or '' }}</td>
+                    <td>{{ s['qty'] }}</td>
+                    <td>{% if s['is_edited'] %}<span class="edited">yes (was {{ s['original_qty'] }})</span>{% endif %}</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>

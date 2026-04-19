@@ -59,6 +59,21 @@ def init_workers_table():
     conn.close()
 
 
+def init_items_table():
+    """Create items table for QR-code tool/consumable list on kiosk."""
+    conn = get_db()
+    conn.execute('''CREATE TABLE IF NOT EXISTS items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_code TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        part_number TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+    conn.close()
+
+
 def next_badge_id():
     """Generate the next sequential badge ID like WKR-00001."""
     row = query_db("SELECT badge_id FROM workers WHERE badge_id LIKE 'WKR-%' "
@@ -72,11 +87,25 @@ def next_badge_id():
     return f'WKR-{n + 1:05d}'
 
 
+def next_item_code():
+    """Generate the next sequential item code like ITM-00001."""
+    row = query_db("SELECT item_code FROM items WHERE item_code LIKE 'ITM-%' "
+                   "ORDER BY id DESC LIMIT 1", one=True)
+    if not row:
+        return 'ITM-00001'
+    try:
+        n = int(row['item_code'].split('-')[1])
+    except (IndexError, ValueError):
+        n = 0
+    return f'ITM-{n + 1:05d}'
+
+
 # Auto-create tables on startup
 with app.app_context():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     init_users_table()
     init_workers_table()
+    init_items_table()
 
 
 def admin_required(view_func):
@@ -114,7 +143,14 @@ def require_login_for_app():
 
 @app.route('/')
 def index():
-    recent_scans = query_db("SELECT * FROM logs ORDER BY id DESC LIMIT 10")
+    # Kiosk log: worker name + item name only
+    recent_scans = query_db("""
+        SELECT l.id, l.timestamp, w.name AS worker_name, i.name AS item_name, l.qty
+        FROM logs l
+        LEFT JOIN workers w ON w.badge_id = l.badge_id
+        LEFT JOIN items i ON i.item_code = l.item_id
+        ORDER BY l.id DESC LIMIT 10
+    """)
     workers = query_db("SELECT badge_id, name FROM workers WHERE is_active = 1 "
                        "ORDER BY name COLLATE NOCASE")
     recent_workers = query_db("""
@@ -125,8 +161,19 @@ def index():
         ORDER BY l.last_id DESC
         LIMIT 8
     """)
+    items = query_db("SELECT item_code, name FROM items WHERE is_active = 1 "
+                     "ORDER BY name COLLATE NOCASE")
+    recent_items = query_db("""
+        SELECT i.item_code, i.name FROM items i
+        JOIN (SELECT item_id, MAX(id) AS last_id FROM logs GROUP BY item_id) l
+          ON l.item_id = i.item_code
+        WHERE i.is_active = 1
+        ORDER BY l.last_id DESC
+        LIMIT 8
+    """)
     return render_template('index.html', scans=recent_scans,
-                           workers=workers, recent_workers=recent_workers)
+                           workers=workers, recent_workers=recent_workers,
+                           items=items, recent_items=recent_items)
 
 
 @app.route('/scan', methods=['POST'])
@@ -171,7 +218,15 @@ def admin_logout():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
-    recent_scans = query_db("SELECT * FROM logs ORDER BY id DESC LIMIT 20")
+    recent_scans = query_db("""
+        SELECT l.id, l.timestamp, l.badge_id, w.name AS worker_name,
+               l.item_id, i.name AS item_name, i.part_number,
+               l.qty, l.is_edited, l.original_qty
+        FROM logs l
+        LEFT JOIN workers w ON w.badge_id = l.badge_id
+        LEFT JOIN items i ON i.item_code = l.item_id
+        ORDER BY l.id DESC LIMIT 20
+    """)
     total_logs = query_db("SELECT COUNT(*) FROM logs", one=True)[0]
     return render_template(
         'admin_dashboard.html',
@@ -307,6 +362,96 @@ def admin_workers_delete(worker_id):
     return redirect(url_for('admin_workers'))
 
 
+@app.route('/admin/items')
+@admin_required
+def admin_items():
+    items = query_db('SELECT * FROM items ORDER BY name COLLATE NOCASE')
+    return render_template('admin_items.html', items=items)
+
+
+@app.route('/admin/items/add', methods=['POST'])
+@admin_required
+def admin_items_add():
+    item_code = request.form.get('item_code', '').strip()
+    name = request.form.get('name', '').strip()
+    part_number = request.form.get('part_number', '').strip() or None
+
+    if not name:
+        flash('Item name is required.', 'error')
+        return redirect(url_for('admin_items'))
+
+    if not item_code:
+        item_code = next_item_code()
+
+    existing = query_db('SELECT id FROM items WHERE item_code = ?',
+                        (item_code,), one=True)
+    if existing:
+        flash(f'Item code "{item_code}" already exists.', 'error')
+        return redirect(url_for('admin_items'))
+
+    query_db('INSERT INTO items (item_code, name, part_number) VALUES (?, ?, ?)',
+             (item_code, name, part_number))
+    flash(f'Item "{name}" created with code {item_code}.', 'success')
+    return redirect(url_for('admin_items'))
+
+
+@app.route('/admin/items/<int:item_id>/edit', methods=['POST'])
+@admin_required
+def admin_items_edit(item_id):
+    item = query_db('SELECT * FROM items WHERE id = ?', (item_id,), one=True)
+    if not item:
+        flash('Item not found.', 'error')
+        return redirect(url_for('admin_items'))
+
+    name = request.form.get('name', '').strip() or item['name']
+    part_number = request.form.get('part_number', '').strip() or None
+    is_active = request.form.get('is_active', '1')
+
+    query_db('UPDATE items SET name = ?, part_number = ?, is_active = ? WHERE id = ?',
+             (name, part_number, int(is_active), item_id))
+    flash(f'Item "{name}" updated.', 'success')
+    return redirect(url_for('admin_items'))
+
+
+@app.route('/admin/items/<int:item_id>/delete', methods=['POST'])
+@admin_required
+def admin_items_delete(item_id):
+    item = query_db('SELECT * FROM items WHERE id = ?', (item_id,), one=True)
+    if not item:
+        flash('Item not found.', 'error')
+        return redirect(url_for('admin_items'))
+
+    query_db('DELETE FROM items WHERE id = ?', (item_id,))
+    flash(f'Item "{item["name"]}" deleted.', 'success')
+    return redirect(url_for('admin_items'))
+
+
+@app.route('/api/lookup')
+def api_lookup():
+    """Resolve a scanned code to a human name for kiosk visual confirmation.
+
+    Query params: ?badge=<code> or ?item=<code> (one at a time).
+    Returns JSON: { known: bool, name: string|null, part_number?: string }
+    """
+    badge = request.args.get('badge', '').strip()
+    item_code = request.args.get('item', '').strip()
+    if badge:
+        row = query_db('SELECT name FROM workers WHERE badge_id = ? AND is_active = 1',
+                       (badge,), one=True)
+        if row:
+            return {'known': True, 'name': row['name']}
+        return {'known': False, 'name': None}
+    if item_code:
+        row = query_db('SELECT name, part_number FROM items '
+                       'WHERE item_code = ? AND is_active = 1',
+                       (item_code,), one=True)
+        if row:
+            return {'known': True, 'name': row['name'],
+                    'part_number': row['part_number'] or ''}
+        return {'known': False, 'name': None}
+    return {'known': False, 'name': None}
+
+
 @app.route('/edit_last', methods=['POST'])
 def edit_last():
     last_entry = query_db("SELECT id, qty FROM logs ORDER BY id DESC LIMIT 1", one=True)
@@ -322,11 +467,24 @@ def edit_last():
 @app.route('/export')
 @admin_required
 def export():
-    data = query_db("SELECT * FROM logs")
+    data = query_db("""
+        SELECT l.id, l.timestamp, l.badge_id, w.name AS worker_name,
+               l.item_id, i.name AS item_name, i.part_number,
+               l.qty, l.is_edited, l.original_qty
+        FROM logs l
+        LEFT JOIN workers w ON w.badge_id = l.badge_id
+        LEFT JOIN items i ON i.item_code = l.item_id
+        ORDER BY l.id
+    """)
+    def csv_escape(v):
+        s = '' if v is None else str(v)
+        if any(c in s for c in ',"\n\r'):
+            return '"' + s.replace('"', '""') + '"'
+        return s
     def generate():
-        yield 'ID,Timestamp,Badge_ID,Item_ID,Qty,Is_Edited,Original_Qty\n'
+        yield 'ID,Timestamp,Badge_ID,Worker_Name,Item_Code,Item_Name,Part_Number,Qty,Is_Edited,Original_Qty\n'
         for row in data:
-            yield ','.join(map(str, tuple(row))) + '\n'
+            yield ','.join(csv_escape(v) for v in tuple(row)) + '\n'
     return Response(generate(), mimetype='text/csv',
                     headers={"Content-disposition": "attachment; filename=toolroom_export.csv"})
 
