@@ -212,7 +212,7 @@ def admin_login():
 @admin_required
 def admin_logout():
     session.clear()
-    return redirect(url_for('admin_login'))
+    return redirect(url_for('index'))
 
 
 @app.route('/admin')
