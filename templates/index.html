@@ -200,6 +200,30 @@
         }
         .worker-hidden { display: none !important; }
 
+        /* Overlay scroll controls — scanner-friendly nav. Sticky so it stays reachable
+           by the scanner no matter how far down the operator has scrolled. */
+        .overlay-nav {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+            background: #121212; border: 1px solid #2a3a2a; border-radius: 10px;
+            padding: 8px 10px; margin-bottom: 10px;
+            position: sticky; top: 110px; z-index: 2;
+        }
+        .overlay-nav .nav-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .overlay-nav .nav-label { color: #9bb3c7; font-size: 0.78rem; font-weight: 600; padding: 0 4px; }
+        .nav-tile {
+            text-align: center; cursor: pointer; user-select: none;
+            padding: 4px 4px 2px; background: #1a1a1a; border-radius: 6px;
+        }
+        .nav-tile canvas {
+            width: 54px; height: 54px; border: 3px solid #fff;
+            border-radius: 4px; display: block; margin: 0 auto 2px;
+            image-rendering: pixelated; background: #fff;
+        }
+        .nav-tile p { margin: 0; color: #cfe; font-size: 0.7rem; font-weight: 700; line-height: 1; }
+        .nav-tile.letter p { color: #ffd86b; font-size: 0.85rem; }
+        .nav-tile.page p { color: #8fd3ff; }
+        .nav-tile.top-bot p { color: #ffae6b; }
+
         #screensaver { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; display: none; z-index: 100000; }
         #bouncing-logo { position: absolute; max-height: 150px; width: auto; left: 0; top: 0; }
 
@@ -297,6 +321,25 @@
                     <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-WORKERS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
                 </div>
 
+                {% set worker_letters = workers|map(attribute='name')|map('first')|map('upper')|unique|list %}
+                <div class="overlay-nav">
+                    <div class="nav-group">
+                        <span class="nav-label">PAGE</span>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-TOP"></canvas><p>TOP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGUP"></canvas><p>UP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGDN"></canvas><p>DOWN</p></div>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-BOTTOM"></canvas><p>BOTTOM</p></div>
+                    </div>
+                    {% if worker_letters %}
+                    <div class="nav-group">
+                        <span class="nav-label">JUMP</span>
+                        {% for ltr in worker_letters %}
+                        <div class="nav-tile letter"><canvas data-qr="CMD-JUMP-{{ ltr }}"></canvas><p>{{ ltr }}</p></div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
                 {% if recent_workers %}
                 <div class="workers-section-title">Recent</div>
                 <div class="workers-grid" id="workers-recent">
@@ -340,6 +383,25 @@
                     <h3 class="workers-title" style="color:#ffae6b;">Items</h3>
                     <input type="text" id="items-search" placeholder="Type to filter..." autocomplete="off">
                     <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-ITEMS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
+                </div>
+
+                {% set item_letters = items|map(attribute='name')|map('first')|map('upper')|unique|list %}
+                <div class="overlay-nav">
+                    <div class="nav-group">
+                        <span class="nav-label">PAGE</span>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-TOP"></canvas><p>TOP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGUP"></canvas><p>UP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGDN"></canvas><p>DOWN</p></div>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-BOTTOM"></canvas><p>BOTTOM</p></div>
+                    </div>
+                    {% if item_letters %}
+                    <div class="nav-group">
+                        <span class="nav-label">JUMP</span>
+                        {% for ltr in item_letters %}
+                        <div class="nav-tile letter"><canvas data-qr="CMD-JUMP-{{ ltr }}"></canvas><p>{{ ltr }}</p></div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
 
                 {% if recent_items %}
@@ -623,6 +685,49 @@
         // Clear the resolved name if the operator manually edits an input.
         badgeInput.addEventListener('input', () => clearResolved(badgeResolved));
         itemInput.addEventListener('input', () => clearResolved(itemResolved));
+
+        // --- Overlay scroll / jump nav (scanner-friendly) ---
+        function activeOverlayContainer() {
+            if (workersOverlay.style.display === 'flex') return document.getElementById('workers-container');
+            if (itemsOverlay.style.display === 'flex') return document.getElementById('items-container');
+            return null;
+        }
+
+        function handleOverlayNav(cmd) {
+            const el = activeOverlayContainer();
+            if (!el) return;
+            // The scan populated the focused search box with "CMD-NAV-..." text —
+            // clear it and restore the full list before scrolling.
+            const isWorkers = workersOverlay.style.display === 'flex';
+            if (isWorkers) {
+                workersSearch.value = '';
+                filterWorkers('');
+            } else {
+                itemsSearch.value = '';
+                filterItems('');
+            }
+            const step = Math.max(el.clientHeight - 120, 200); // ~one page minus header
+            if (cmd.includes('NAV-TOP')) {
+                el.scrollTo({ top: 0, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-BOTTOM')) {
+                el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-PGUP')) {
+                el.scrollBy({ top: -step, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-PGDN')) {
+                el.scrollBy({ top: step, behavior: 'smooth' });
+            } else if (cmd.startsWith('CMD-JUMP-')) {
+                const letter = cmd.slice('CMD-JUMP-'.length, 'CMD-JUMP-'.length + 1);
+                if (!letter) return;
+                // Find the first letter-header inside the active overlay that matches.
+                const headers = el.querySelectorAll('.workers-letter');
+                for (const h of headers) {
+                    if (h.textContent.trim().toUpperCase() === letter.toUpperCase()) {
+                        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        return;
+                    }
+                }
+            }
+        }
 
         // --- Name resolution (kiosk visual confirmation after a scan) ---
         function setResolvedKnown(el, name) {
@@ -923,6 +1028,10 @@
                 if (normalized.includes('DONE-WORKERS') || normalized.includes('CLOSE-WORKERS')) { closeWorkersOverlay(); return; }
                 if (normalized.includes('OPEN-ITEMS')) { openItemsOverlay(); return; }
                 if (normalized.includes('DONE-ITEMS') || normalized.includes('CLOSE-ITEMS')) { closeItemsOverlay(); return; }
+                if (normalized.startsWith('CMD-NAV-') || normalized.startsWith('CMD-JUMP-')) {
+                    handleOverlayNav(normalized);
+                    return;
+                }
                 if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }
                 if (normalized.includes('DONE-PAD')) { closeNumPad(); return; }
                 if (normalized.includes('NUM-') || (normalized.startsWith('NUM') && /\d/.test(normalized))) {
