@@ -39,9 +39,8 @@
 
         .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
         .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
-        .qty-commands { display: flex; flex-direction: column; align-items: center; gap: 65px; padding: 8px 0; }
-        .qty-command-open img { border-color: #00ff00; }
-        .qty-command-clear img { border-color: #ff4444; }
+        .qty-command-open canvas { border-color: #00ff00; }
+        .qty-command-clear canvas { border-color: #ff4444; }
 
         #status-bar { font-size: 1.2rem; padding: 10px; margin-bottom: 10px; border-radius: 10px; display: none; background: #ff9900; color: black; font-weight: bold; }
         .correction-active { display: block !important; }
@@ -276,10 +275,7 @@
             <div class="qty-container">
                 <div style="text-align: right;"><p style="margin: 0; color: #888;">Qty</p></div>
                 <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
-                <div class="qty-commands">
-                    <div class="qr-item qty-command-open"><canvas data-qr="CMD-OPEN-PAD"></canvas><p style="color: #00ff00; font-weight: bold;">OPEN NUM PAD</p></div>
-                    <div class="qr-item qty-command-clear"><canvas data-qr="CMD-CLEAR-QTY"></canvas><p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p></div>
-                </div>
+                <div class="qr-item qty-command-open"><canvas data-qr="CMD-OPEN-PAD"></canvas><p style="color: #00ff00; font-weight: bold;">Qty</p></div>
             </div>
             <input type="hidden" id="qty-input" name="qty" value="1">
             
@@ -321,7 +317,6 @@
                     <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-WORKERS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
                 </div>
 
-                {% set worker_letters = workers|map(attribute='name')|map('first')|map('upper')|unique|list %}
                 <div class="overlay-nav">
                     <div class="nav-group">
                         <span class="nav-label">PAGE</span>
@@ -330,14 +325,14 @@
                         <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGDN"></canvas><p>DOWN</p></div>
                         <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-BOTTOM"></canvas><p>BOTTOM</p></div>
                     </div>
-                    {% if worker_letters %}
-                    <div class="nav-group">
+                    <div class="nav-group" id="workers-jump-group">
                         <span class="nav-label">JUMP</span>
-                        {% for ltr in worker_letters %}
-                        <div class="nav-tile letter"><canvas data-qr="CMD-JUMP-{{ ltr }}"></canvas><p>{{ ltr }}</p></div>
-                        {% endfor %}
+                        <!-- letter tiles rendered dynamically by JS based on current sort -->
                     </div>
-                    {% endif %}
+                    <div class="nav-group">
+                        <span class="nav-label">SORT</span>
+                        <div class="nav-tile page"><canvas data-qr="CMD-SORT-WORKERS"></canvas><p id="workers-sort-label">LAST</p></div>
+                    </div>
                 </div>
 
                 {% if recent_workers %}
@@ -355,22 +350,19 @@
 
                 <div class="workers-section-title">All Workers</div>
                 {% if workers %}
-                    {% set ns = namespace(letter='') %}
-                    {% for w in workers %}
-                        {% set first = w['name'][0]|upper %}
-                        {% if first != ns.letter %}
-                            {% if not loop.first %}</div>{% endif %}
-                            {% set ns.letter = first %}
-                            <div class="workers-letter">{{ first }}</div>
-                            <div class="workers-grid">
-                        {% endif %}
-                        <div class="worker-tile" data-name="{{ w['name']|lower }}" data-badge="{{ w['badge_id']|lower }}">
+                    <div id="workers-all">
+                        {% for w in workers %}
+                        <div class="worker-tile"
+                             data-name="{{ w['name']|lower }}"
+                             data-badge="{{ w['badge_id']|lower }}"
+                             data-first-initial="{{ w['first_initial'] }}"
+                             data-last-initial="{{ w['last_initial'] }}">
                             <canvas data-qr="{{ w['badge_id'] }}"></canvas>
                             <p>{{ w['name'] }}</p>
                             <p class="badge-id">{{ w['badge_id'] }}</p>
                         </div>
-                        {% if loop.last %}</div>{% endif %}
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 {% else %}
                     <div class="workers-empty">No workers yet. Add them in the admin Worker Manager.</div>
                 {% endif %}
@@ -541,6 +533,7 @@
 
         window.onload = () => {
             _renderAllQR();
+            renderWorkersList();
             document.getElementById('timer-setting').value = ssLimit / 60;
             badgeInput.focus();
             resetIdleTimer();
@@ -656,6 +649,102 @@
 
         workersSearch.addEventListener('input', () => filterWorkers(workersSearch.value));
 
+        // --- Workers sort (last-name default, toggle first/last via QR) ---
+        let workersSortMode = localStorage.getItem('workersSortMode') || 'last';
+        function lastName(fullName) {
+            const parts = (fullName || '').trim().split(/\s+/);
+            return parts.length ? parts[parts.length - 1] : '';
+        }
+        function firstName(fullName) {
+            const parts = (fullName || '').trim().split(/\s+/);
+            return parts.length ? parts[0] : '';
+        }
+        function renderWorkersList() {
+            const host = document.getElementById('workers-all');
+            if (!host) return;
+            const tiles = Array.from(host.querySelectorAll('.worker-tile'));
+            // Detach dividers from any previous render
+            host.querySelectorAll('.workers-letter, .workers-grid').forEach(n => n.remove());
+            tiles.forEach(t => t.remove());
+
+            tiles.sort((a, b) => {
+                const an = a.getAttribute('data-name') || '';
+                const bn = b.getAttribute('data-name') || '';
+                if (workersSortMode === 'last') {
+                    const al = lastName(an), bl = lastName(bn);
+                    return al.localeCompare(bl) || an.localeCompare(bn);
+                }
+                return firstName(an).localeCompare(firstName(bn)) || an.localeCompare(bn);
+            });
+
+            // Rebuild dividers + grids under #workers-all
+            let lastLetter = '';
+            let currentGrid = null;
+            tiles.forEach(t => {
+                const letter = (workersSortMode === 'last'
+                    ? t.getAttribute('data-last-initial')
+                    : t.getAttribute('data-first-initial')) || '';
+                if (letter !== lastLetter) {
+                    lastLetter = letter;
+                    const h = document.createElement('div');
+                    h.className = 'workers-letter';
+                    h.textContent = letter;
+                    host.appendChild(h);
+                    currentGrid = document.createElement('div');
+                    currentGrid.className = 'workers-grid';
+                    host.appendChild(currentGrid);
+                }
+                currentGrid.appendChild(t);
+            });
+
+            // Rebuild the JUMP row with only the letters present in this sort
+            const jumpGroup = document.getElementById('workers-jump-group');
+            if (jumpGroup) {
+                jumpGroup.querySelectorAll('.nav-tile').forEach(n => n.remove());
+                const letters = [...new Set(tiles.map(t =>
+                    (workersSortMode === 'last'
+                        ? t.getAttribute('data-last-initial')
+                        : t.getAttribute('data-first-initial')) || ''))].filter(Boolean);
+                letters.forEach(ltr => {
+                    const tile = document.createElement('div');
+                    tile.className = 'nav-tile letter';
+                    const c = document.createElement('canvas');
+                    c.setAttribute('data-qr', 'CMD-JUMP-' + ltr);
+                    tile.appendChild(c);
+                    const p = document.createElement('p');
+                    p.textContent = ltr;
+                    tile.appendChild(p);
+                    jumpGroup.appendChild(tile);
+                    // Render the freshly-inserted QR
+                    const qr = qrcode(0, 'L');
+                    qr.addData('CMD-JUMP-' + ltr);
+                    qr.make();
+                    const count = qr.getModuleCount();
+                    const scale = 4, quiet = 4;
+                    const total = (count + quiet * 2) * scale;
+                    c.width = total; c.height = total;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, total, total);
+                    ctx.fillStyle = '#000';
+                    for (let r = 0; r < count; r++) for (let cc = 0; cc < count; cc++)
+                        if (qr.isDark(r, cc)) ctx.fillRect((cc + quiet) * scale, (r + quiet) * scale, scale, scale);
+                });
+            }
+
+            // Update the SORT label
+            const lbl = document.getElementById('workers-sort-label');
+            if (lbl) lbl.textContent = workersSortMode.toUpperCase();
+        }
+
+        function toggleWorkersSort() {
+            workersSortMode = workersSortMode === 'last' ? 'first' : 'last';
+            localStorage.setItem('workersSortMode', workersSortMode);
+            renderWorkersList();
+            // Jump back to top after a sort change so the operator isn't lost
+            const el = document.getElementById('workers-container');
+            if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function openItemsOverlay() {
             itemsOverlay.style.display = 'flex';
             statusBar.style.display = 'none';
@@ -719,10 +808,18 @@
                 const letter = cmd.slice('CMD-JUMP-'.length, 'CMD-JUMP-'.length + 1);
                 if (!letter) return;
                 // Find the first letter-header inside the active overlay that matches.
+                // Compute scroll position manually so the sticky header + nav row don't
+                // cover the target — browsers' scrollIntoView doesn't know about sticky.
                 const headers = el.querySelectorAll('.workers-letter');
                 for (const h of headers) {
                     if (h.textContent.trim().toUpperCase() === letter.toUpperCase()) {
-                        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        const header = el.querySelector('.workers-header');
+                        const nav = el.querySelector('.overlay-nav');
+                        const headerH = header ? header.offsetHeight : 0;
+                        const navH = nav ? nav.offsetHeight : 0;
+                        const stickyOffset = headerH + navH + 10; // small breathing room
+                        const target = h.offsetTop - stickyOffset;
+                        el.scrollTo({ top: Math.max(target, 0), behavior: 'smooth' });
                         return;
                     }
                 }
@@ -1030,6 +1127,10 @@
                 if (normalized.includes('DONE-ITEMS') || normalized.includes('CLOSE-ITEMS')) { closeItemsOverlay(); return; }
                 if (normalized.startsWith('CMD-NAV-') || normalized.startsWith('CMD-JUMP-')) {
                     handleOverlayNav(normalized);
+                    return;
+                }
+                if (normalized === 'CMD-SORT-WORKERS') {
+                    toggleWorkersSort();
                     return;
                 }
                 if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }

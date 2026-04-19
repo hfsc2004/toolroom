@@ -87,6 +87,17 @@ def next_badge_id():
     return f'WKR-{n + 1:05d}'
 
 
+def sort_by_last_name(rows):
+    """Sort worker rows (each with a 'name' key) by last word of the name, case-insensitive.
+    Falls back to the full name when there's only one word."""
+    def key(r):
+        name = (r['name'] or '').strip()
+        parts = name.split()
+        last = parts[-1] if parts else ''
+        return (last.lower(), name.lower())
+    return sorted(rows, key=key)
+
+
 def next_item_code():
     """Generate the next sequential item code like ITM-00001."""
     row = query_db("SELECT item_code FROM items WHERE item_code LIKE 'ITM-%' "
@@ -151,8 +162,22 @@ def index():
         LEFT JOIN items i ON i.item_code = l.item_id
         ORDER BY l.id DESC LIMIT 10
     """)
-    workers = query_db("SELECT badge_id, name FROM workers WHERE is_active = 1 "
-                       "ORDER BY name COLLATE NOCASE")
+    workers_rows = sort_by_last_name(
+        query_db("SELECT badge_id, name FROM workers WHERE is_active = 1"))
+    # Precompute first/last initials so the template can render letter dividers
+    # for either sort order without re-parsing names in Jinja.
+    workers = []
+    for r in workers_rows:
+        name = (r['name'] or '').strip()
+        parts = name.split()
+        first_initial = (parts[0][0] if parts else '').upper()
+        last_initial = (parts[-1][0] if parts else '').upper()
+        workers.append({
+            'badge_id': r['badge_id'],
+            'name': r['name'],
+            'first_initial': first_initial,
+            'last_initial': last_initial,
+        })
     recent_workers = query_db("""
         SELECT w.badge_id, w.name FROM workers w
         JOIN (SELECT badge_id, MAX(id) AS last_id FROM logs GROUP BY badge_id) l
@@ -315,7 +340,7 @@ def admin_users_delete(user_id):
 @app.route('/admin/workers')
 @admin_required
 def admin_workers():
-    workers = query_db('SELECT * FROM workers ORDER BY name COLLATE NOCASE')
+    workers = sort_by_last_name(query_db('SELECT * FROM workers'))
     return render_template('admin_workers.html', workers=workers)
 
 
