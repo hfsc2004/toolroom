@@ -1,3 +1,4 @@
+noclaude/
 venv/
 venv.broken*/
 __pycache__/
@@ -10,3 +11,5 @@ data/
 *.xlsx
 import_workers.py
 seed_sample_items.py
+.env
+.vscode/
