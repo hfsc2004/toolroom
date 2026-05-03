@@ -1,7 +1,7 @@
 # Toolroom Kiosk System
 
 <p align="center">
-  <img src="static/logo.png" alt="Toolroom Logo" width="200">
+  <img src="static/kiosk.png" alt="Toolroom Logo" width="400">
 </p>
 
 A barcode/QR-code scanning kiosk for tool crib inventory tracking, built for Raspberry Pi 4.
