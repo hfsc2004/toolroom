@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Toolroom Kiosk</title>
+    <style>
+        body { background-color: #121212; color: #00ff00; font-family: sans-serif; margin: 0; display: flex; justify-content: center; overflow: hidden; }
+        .splash-container { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100vw; }
+        .logo { max-width: 300px; height: auto; margin-bottom: 30px; }
+        .title { color: white; font-size: 3rem; text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; }
+        .subtitle { color: #00ff00; font-size: 1.2rem; font-weight: bold; letter-spacing: 2px; margin-bottom: 50px; }
+        .loader { width: 300px; height: 4px; background: #222; border-radius: 2px; overflow: hidden; position: relative; }
+        .loader-bar { width: 0%; height: 100%; background: #00ff00; position: absolute; left: 0; top: 0; transition: width 0.1s linear; box-shadow: 0 0 10px #00ff00; }
+        .status { margin-top: 15px; color: #888; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="splash-container">
+        <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
+        <div class="title">TOOLROOM</div>
+        <div class="subtitle">KIOSK SYSTEM</div>
+        <div class="loader">
+            <div class="loader-bar" id="loader-bar"></div>
+        </div>
+        <div class="status" id="status">Initializing...</div>
+    </div>
+
+    <script>
+        const bar = document.getElementById('loader-bar');
+        const status = document.getElementById('status');
+        const steps = [
+            { p: 10, t: "Connecting to database..." },
+            { p: 30, t: "Loading user accounts..." },
+            { p: 50, t: "Mapping inventory items..." },
+            { p: 70, t: "Configuring scanner interface..." },
+            { p: 90, t: "Finalizing system checks..." },
+            { p: 100, t: "Ready" }
+        ];
+
+        let currentStep = 0;
+        function updateProgress() {
+            if (currentStep < steps.length) {
+                const step = steps[currentStep];
+                bar.style.width = step.p + '%';
+                status.textContent = step.t;
+                currentStep++;
+                // Randomize timing for a more "authentic" feel
+                setTimeout(updateProgress, 200 + Math.random() * 500);
+            } else {
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('index') }}";
+                }, 500);
+            }
+        }
+
+        window.onload = () => {
+            setTimeout(updateProgress, 500);
+        };
+    </script>
+</body>
+</html>

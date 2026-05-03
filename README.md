@@ -1,5 +1,9 @@
 # Toolroom Kiosk System
 
+<p align="center">
+  <img src="static/logo.png" alt="Toolroom Logo" width="200">
+</p>
+
 A barcode/QR-code scanning kiosk for tool crib inventory tracking, built for Raspberry Pi 4.
 
 Workers scan their badge, scan a tool, and the transaction is logged. Runs fullscreen as a dedicated Wayland kiosk — no desktop environment needed.

@@ -141,7 +141,7 @@ def has_valid_basic_auth():
 
 @app.before_request
 def require_login_for_app():
-    if request.path.startswith('/static/'):
+    if request.path.startswith('/static/') or request.path == '/splash':
         return None
     forwarded_for = (request.headers.get('X-Forwarded-For') or '').strip()
     if request.remote_addr in ('127.0.0.1', '::1') and not forwarded_for:
@@ -152,8 +152,18 @@ def require_login_for_app():
     return None
 
 
+@app.route('/splash')
+def splash():
+    session['viewed_splash'] = True
+    return render_template('splash.html')
+
+
 @app.route('/')
 def index():
+    # Show splash screen once per session
+    if not session.get('viewed_splash'):
+        return redirect(url_for('splash'))
+
     # Kiosk log: worker name + item name only
     recent_scans = query_db("""
         SELECT l.id, l.timestamp, w.name AS worker_name, i.name AS item_name, l.qty
