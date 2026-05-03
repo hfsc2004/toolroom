@@ -1,0 +1,7 @@
+noclaude/
+data/
+__pycache__/
+*.pyc
+.env
+venv/
+.vscode/

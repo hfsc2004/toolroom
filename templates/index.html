@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Toolroom Kiosk</title>
+    <style>
+        body { background-color: #121212 !important; color: #00ff00; font-family: sans-serif; margin: 0; display: flex; justify-content: center; overflow: hidden; }
+        .container { width: 95%; max-width: 1100px; padding: 10px; text-align: center; }
+        
+        .header-area { display: flex; align-items: center; justify-content: center; gap: 30px; margin-bottom: 10px; position: relative; }
+        .logo { max-height: 80px; width: auto; }
+        
+        .settings-btn {
+            position: absolute; right: 0; top: 10px;
+            background: #222; border: 1px solid #444; border-radius: 10px;
+            cursor: pointer; padding: 10px; z-index: 50;
+        }
+        .settings-btn svg { fill: #666; }
+        .settings-btn:hover svg { fill: #00ff00; }
+        
+        h1 { font-size: 2.5rem; text-transform: uppercase; margin: 0; color: #ffffff; }
+        
+        .scan-row { display: flex; align-items: center; justify-content: space-between; background: #1e1e1e; padding: 15px; margin-bottom: 10px; border: 2px solid #333; border-radius: 15px; }
+        input { flex-grow: 1; font-size: 2rem; padding: 12px; background: #000; color: #00ff00; border: 2px solid #444; margin-right: 15px; }
+        input:focus { border-color: #00ff00; outline: none; border-width: 4px; }
+        /* Once a scan resolves to a known name, hide the raw code and show only the name. */
+        .scan-row.resolved-known input { display: none; }
+        .resolved {
+            flex-grow: 1; margin-right: 15px;
+            padding: 16px 18px; border-radius: 10px; font-size: 2rem; font-weight: 700;
+            line-height: 1.15;
+            background: #0d0d0d; color: #9bb3c7; border: 2px solid #333; text-align: center;
+            display: none;
+        }
+        .scan-row.resolved-known .resolved,
+        .scan-row.resolved-unknown .resolved { display: block; }
+        .resolved.known { color: #4ade80; border-color: #2d5a3d; background: #112418; }
+        .resolved.unknown { color: #f87171; border-color: #5a2d2d; background: #241111; font-size: 1.2rem; }
+
+        .qty-container { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 15px 0; }
+        .qty-display { background: #004400; color: #00ff00; border: 4px solid #00ff00; border-radius: 20px; width: 150px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; }
+        .qty-command-open canvas { border-color: #00ff00; }
+        .qty-command-clear canvas { border-color: #ff4444; }
+
+        #status-bar { font-size: 1.2rem; padding: 10px; margin-bottom: 10px; border-radius: 10px; display: none; background: #ff9900; color: black; font-weight: bold; }
+        .correction-active { display: block !important; }
+
+        .qr-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-top: 15px; background: #222; padding: 15px; border-radius: 15px; }
+        .qr-item { font-size: 0.75rem; color: #888; text-align: center; cursor: pointer; user-select: none; }
+        .qr-item canvas { width: 80px; height: 80px; border: 4px solid white; border-radius: 8px; display: block; margin: 0 auto 5px; image-rendering: pixelated; }
+        #numpad-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
+            display: none;
+            z-index: 99990;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+        }
+        #numpad-container {
+            width: min(960px, 96vw);
+            max-height: 90vh;
+            overflow-y: auto;
+            margin-top: 0;
+            background: #222;
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #00ff00;
+            box-sizing: border-box;
+        }
+        .overlay-tally { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 8px 0 14px; }
+        .overlay-tally-label { color: #9abf9a; font-size: 1rem; }
+        .overlay-tally-value {
+            flex-grow: 0;
+            margin-right: 0;
+            min-width: 90px;
+            padding: 8px 14px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            background: #003300;
+            color: #00ff00;
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        #numpad-grid { grid-template-columns: repeat(4, minmax(90px, 1fr)); }
+        #log-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            z-index: 99991;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+        }
+        #log-container {
+            width: min(1080px, 97vw);
+            max-height: 90vh;
+            overflow: auto;
+            overscroll-behavior: contain;
+            background: #1f1f1f;
+            border: 2px solid #00ff00;
+            border-radius: 14px;
+            box-sizing: border-box;
+            padding: 12px;
+        }
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .log-title { color: #00ff00; font-size: 1.4rem; margin: 0; }
+        .log-close {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        .log-tools { display: flex; justify-content: center; margin: 8px 0 10px; }
+        .log-table { width: 100%; margin-top: 0; border-collapse: collapse; }
+
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 8px; font-size: 1rem; }
+
+        /* Workers/Items overlays */
+        #workers-overlay, #items-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            z-index: 99992;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 14px;
+        }
+        #workers-container, #items-container {
+            width: min(1200px, 97vw);
+            max-height: 94vh;
+            overflow: auto;
+            overscroll-behavior: contain;
+            background: #1f1f1f;
+            border: 2px solid #00ff00;
+            border-radius: 14px;
+            box-sizing: border-box;
+            padding: 14px 18px;
+            margin-top: 2vh;
+        }
+        #items-container { border-color: #ffae6b; }
+        .workers-header {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 10px; position: sticky; top: 0;
+            background: #1f1f1f; padding: 4px 0 10px; z-index: 1;
+        }
+        .workers-title { color: #00ff00; font-size: 1.4rem; margin: 0; }
+        #workers-search {
+            flex: 1; max-width: 360px; padding: 10px 14px;
+            border: 2px solid #00ff00; border-radius: 10px;
+            background: #000; color: #00ff00; font-size: 1.1rem;
+        }
+        .workers-section-title {
+            color: #8fd3ff; font-size: 1.05rem; margin: 14px 0 8px;
+            border-bottom: 1px solid #2a3a4a; padding-bottom: 4px;
+        }
+        .workers-letter {
+            color: #00ff00; font-size: 1.3rem; font-weight: bold;
+            margin: 14px 0 6px; padding: 2px 10px;
+            background: #003300; display: inline-block; border-radius: 6px;
+        }
+        .workers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 28px 22px;
+            margin-bottom: 16px;
+        }
+        .worker-tile {
+            background: #222; border: 1px solid #2a3a2a; border-radius: 10px;
+            padding: 10px 6px 8px; text-align: center; cursor: pointer; user-select: none;
+        }
+        .worker-tile canvas {
+            width: 120px; height: 120px; border: 8px solid #fff;
+            border-radius: 6px; display: block; margin: 0 auto 6px;
+            image-rendering: pixelated;
+            background: #fff;
+        }
+        .worker-tile p {
+            margin: 0; color: #d4e9d4; font-size: 0.82rem; font-weight: 600;
+            line-height: 1.15; word-break: break-word;
+        }
+        .worker-tile .badge-id { color: #7a8a9a; font-size: 0.7rem; font-weight: 400; }
+        .workers-empty {
+            color: #888; text-align: center; padding: 30px 10px;
+        }
+        .worker-hidden { display: none !important; }
+
+        /* Overlay scroll controls — scanner-friendly nav. Sticky so it stays reachable
+           by the scanner no matter how far down the operator has scrolled. */
+        .overlay-nav {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+            background: #121212; border: 1px solid #2a3a2a; border-radius: 10px;
+            padding: 8px 10px; margin-bottom: 10px;
+            position: sticky; top: 110px; z-index: 2;
+        }
+        .overlay-nav .nav-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .overlay-nav .nav-label { color: #9bb3c7; font-size: 0.78rem; font-weight: 600; padding: 0 4px; }
+        .nav-tile {
+            text-align: center; cursor: pointer; user-select: none;
+            padding: 4px 4px 2px; background: #1a1a1a; border-radius: 6px;
+        }
+        .nav-tile canvas {
+            width: 54px; height: 54px; border: 3px solid #fff;
+            border-radius: 4px; display: block; margin: 0 auto 2px;
+            image-rendering: pixelated; background: #fff;
+        }
+        .nav-tile p { margin: 0; color: #cfe; font-size: 0.7rem; font-weight: 700; line-height: 1; }
+        .nav-tile.letter p { color: #ffd86b; font-size: 0.85rem; }
+        .nav-tile.page p { color: #8fd3ff; }
+        .nav-tile.top-bot p { color: #ffae6b; }
+
+        #screensaver { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; display: none; z-index: 100000; }
+        #bouncing-logo { position: absolute; max-height: 150px; width: auto; left: 0; top: 0; }
+
+        #settings-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #222; border: 3px solid #00ff00; padding: 30px; border-radius: 20px;
+            z-index: 100001; display: none; color: white; min-width: 320px; text-align: center;
+        }
+        .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 100000; display: none; }
+    </style>
+    <script src="{{ url_for('static', filename='qrcode.min.js') }}"></script>
+</head>
+<body onclick="ensureFocus(event)">
+
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div id="settings-modal">
+        <h3 style="color:#00ff00; margin-top:0;">KIOSK SETTINGS</h3>
+        <p>Screensaver Idle Time (Minutes):</p>
+        <input type="number" id="timer-setting" value="5" style="width: 80px; text-align: center; font-size: 1.5rem; background:#000; color:#00ff00;">
+        <br><br>
+        <button id="save-btn" style="padding: 15px 30px; background: #00ff00; color: black; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem;">SAVE & CLOSE</button>
+    </div>
+
+    <div id="screensaver">
+        <img src="{{ url_for('static', filename='logo.png') }}" id="bouncing-logo" alt="DVD Logo">
+    </div>
+
+        <div class="container" id="main-ui">
+            <div id="status-bar">READY</div>
+        
+        <div class="header-area">
+            <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Company Logo" onerror="this.style.display='none'">
+            <h1>Toolroom Kiosk</h1>
+            <button id="gear-btn" class="settings-btn" type="button">
+                <svg width="40" height="40" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
+        </div>
+        
+        <form id="scan-form" onsubmit="return false;">
+            <div class="scan-row">
+                <input type="text" id="badge" name="badge" placeholder="1. SCAN BADGE" autocomplete="off">
+                <div id="badge-resolved" class="resolved"></div>
+                <div class="qr-item"><canvas data-qr="CMD-REDO-BADGE"></canvas><p>REDO BADGE</p></div>
+            </div>
+            <div class="scan-row">
+                <input type="text" id="item" name="item" placeholder="2. SCAN TOOL" autocomplete="off">
+                <div id="item-resolved" class="resolved"></div>
+                <div class="qr-item"><canvas data-qr="CMD-REDO-ITEM"></canvas><p>REDO ITEM</p></div>
+            </div>
+            <div class="qty-container">
+                <div style="text-align: right;"><p style="margin: 0; color: #888;">Qty</p></div>
+                <input type="text" class="qty-display" id="qty-bubble" value="1" inputmode="numeric" style="cursor: text; border: 4px solid #00ff00;">
+                <div class="qr-item qty-command-open"><canvas data-qr="CMD-OPEN-PAD"></canvas><p style="color: #00ff00; font-weight: bold;">Qty</p></div>
+            </div>
+            <input type="hidden" id="qty-input" name="qty" value="1">
+            
+            <div id="numpad-overlay">
+                <div id="numpad-container">
+                    <h3 style="color: #00ff00; margin-top: 0;">NUMBER ENTRY MODE</h3>
+                    <div class="overlay-tally">
+                        <span class="overlay-tally-label">Qty</span>
+                        <input type="text" id="overlay-tally-value" class="overlay-tally-value" value="1" inputmode="numeric" style="width: 120px;">
+                    </div>
+                    <div style="display:flex; justify-content:center; margin: 6px 0 10px;">
+                        <div class="qr-item qty-command-clear">
+                            <canvas data-qr="CMD-CLEAR-QTY"></canvas>
+                            <p style="color: #ff4444; font-weight: bold;">CLEAR QTY</p>
+                        </div>
+                    </div>
+                    <div class="qr-grid" id="numpad-grid">
+                        {% for i in range(1, 10) %}
+                        <div class="qr-item"><canvas data-qr="NUM-{{i}}"></canvas><p>SCAN {{i}}</p></div>
+                        {% endfor %}
+                        <div class="qr-item"><canvas data-qr="NUM-0"></canvas><p>SCAN 0</p></div>
+                        <div class="qr-item" style="grid-column: span 2;"><canvas data-qr="CMD-DONE-PAD"></canvas><p style="color:#00ff00; font-weight:bold;">DONE / HIDE PAD</p></div>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-around; margin-top: 20px; background: #333; padding: 15px; border-radius: 15px;">
+                <div class="qr-item"><canvas data-qr="CMD-OPEN-WORKERS"></canvas><p style="color:#ffd86b; font-weight:bold;">WORKERS</p></div>
+                <div class="qr-item"><canvas data-qr="CMD-OPEN-ITEMS"></canvas><p style="color:#ffae6b; font-weight:bold;">ITEMS</p></div>
+                <div class="qr-item"><canvas data-qr="CMD-OPEN-LOG"></canvas><p style="color:#8fd3ff; font-weight:bold;">VIEW LOG</p></div>
+                <div class="qr-item"><canvas data-qr="CMD-SUBMIT"></canvas><p style="color:#00ff00; font-weight:bold;">FINISH & LOG</p></div>
+            </div>
+        </form>
+
+        <div id="workers-overlay">
+            <div id="workers-container">
+                <div class="workers-header">
+                    <h3 class="workers-title">Workers</h3>
+                    <input type="text" id="workers-search" placeholder="Type to filter..." autocomplete="off">
+                    <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-WORKERS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
+                </div>
+
+                <div class="overlay-nav">
+                    <div class="nav-group">
+                        <span class="nav-label">PAGE</span>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-TOP"></canvas><p>TOP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGUP"></canvas><p>UP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGDN"></canvas><p>DOWN</p></div>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-BOTTOM"></canvas><p>BOTTOM</p></div>
+                    </div>
+                    <div class="nav-group" id="workers-jump-group">
+                        <span class="nav-label">JUMP</span>
+                        <!-- letter tiles rendered dynamically by JS based on current sort -->
+                    </div>
+                    <div class="nav-group">
+                        <span class="nav-label">SORT</span>
+                        <div class="nav-tile page"><canvas data-qr="CMD-SORT-WORKERS"></canvas><p id="workers-sort-label">LAST</p></div>
+                    </div>
+                </div>
+
+                {% if recent_workers %}
+                <div class="workers-section-title">Recent</div>
+                <div class="workers-grid" id="workers-recent">
+                    {% for w in recent_workers %}
+                    <div class="worker-tile" data-name="{{ w['name']|lower }}" data-badge="{{ w['badge_id']|lower }}">
+                        <canvas data-qr="{{ w['badge_id'] }}"></canvas>
+                        <p>{{ w['name'] }}</p>
+                        <p class="badge-id">{{ w['badge_id'] }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="workers-section-title">All Workers</div>
+                {% if workers %}
+                    <div id="workers-all">
+                        {% for w in workers %}
+                        <div class="worker-tile"
+                             data-name="{{ w['name']|lower }}"
+                             data-badge="{{ w['badge_id']|lower }}"
+                             data-first-initial="{{ w['first_initial'] }}"
+                             data-last-initial="{{ w['last_initial'] }}">
+                            <canvas data-qr="{{ w['badge_id'] }}"></canvas>
+                            <p>{{ w['name'] }}</p>
+                            <p class="badge-id">{{ w['badge_id'] }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="workers-empty">No workers yet. Add them in the admin Worker Manager.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="items-overlay">
+            <div id="items-container">
+                <div class="workers-header">
+                    <h3 class="workers-title" style="color:#ffae6b;">Items</h3>
+                    <input type="text" id="items-search" placeholder="Type to filter..." autocomplete="off">
+                    <div class="qr-item" style="margin: 0;"><canvas data-qr="CMD-DONE-ITEMS"></canvas><p style="color:#00ff00; font-weight:bold;">CLOSE</p></div>
+                </div>
+
+                {% set item_letters = items|map(attribute='name')|map('first')|map('upper')|unique|list %}
+                <div class="overlay-nav">
+                    <div class="nav-group">
+                        <span class="nav-label">PAGE</span>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-TOP"></canvas><p>TOP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGUP"></canvas><p>UP</p></div>
+                        <div class="nav-tile page"><canvas data-qr="CMD-NAV-PGDN"></canvas><p>DOWN</p></div>
+                        <div class="nav-tile top-bot"><canvas data-qr="CMD-NAV-BOTTOM"></canvas><p>BOTTOM</p></div>
+                    </div>
+                    {% if item_letters %}
+                    <div class="nav-group">
+                        <span class="nav-label">JUMP</span>
+                        {% for ltr in item_letters %}
+                        <div class="nav-tile letter"><canvas data-qr="CMD-JUMP-{{ ltr }}"></canvas><p>{{ ltr }}</p></div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if recent_items %}
+                <div class="workers-section-title">Recent</div>
+                <div class="workers-grid">
+                    {% for i in recent_items %}
+                    <div class="worker-tile item-tile" data-name="{{ i['name']|lower }}" data-code="{{ i['item_code']|lower }}">
+                        <canvas data-qr="{{ i['item_code'] }}"></canvas>
+                        <p>{{ i['name'] }}</p>
+                        <p class="badge-id">{{ i['item_code'] }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="workers-section-title">All Items</div>
+                {% if items %}
+                    {% set ns = namespace(letter='') %}
+                    {% for i in items %}
+                        {% set first = i['name'][0]|upper %}
+                        {% if first != ns.letter %}
+                            {% if not loop.first %}</div>{% endif %}
+                            {% set ns.letter = first %}
+                            <div class="workers-letter" style="background:#3a2a00; color:#ffae6b;">{{ first }}</div>
+                            <div class="workers-grid">
+                        {% endif %}
+                        <div class="worker-tile item-tile" data-name="{{ i['name']|lower }}" data-code="{{ i['item_code']|lower }}">
+                            <canvas data-qr="{{ i['item_code'] }}"></canvas>
+                            <p>{{ i['name'] }}</p>
+                            <p class="badge-id">{{ i['item_code'] }}</p>
+                        </div>
+                        {% if loop.last %}</div>{% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="workers-empty">No items yet. Add them in the admin Item Manager.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="log-overlay">
+            <div id="log-container">
+                <div class="log-header">
+                    <h3 class="log-title">Recent Scan Log</h3>
+                    <button type="button" id="close-log-btn" class="log-close">CLOSE</button>
+                </div>
+                <div class="log-tools">
+                    <div class="qr-item"><canvas data-qr="CMD-DONE-LOG"></canvas><p style="color:#00ff00; font-weight:bold;">DONE / CLOSE LOG</p></div>
+                </div>
+                <table class="log-table">
+                    <thead><tr><th>Time</th><th>Worker</th><th>Item</th><th>Qty</th></tr></thead>
+                    <tbody>
+                        {% for s in scans %}
+                        <tr>
+                            <td>{{ s['timestamp'] }}</td>
+                            <td>{{ s['worker_name'] or '[Unknown]' }}</td>
+                            <td>{{ s['item_name'] or '[Unknown]' }}</td>
+                            <td>{{ s['qty'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const badgeInput = document.getElementById('badge');
+        const itemInput = document.getElementById('item');
+        const qtyBubble = document.getElementById('qty-bubble');
+        const qtyInput = document.getElementById('qty-input');
+        const statusBar = document.getElementById('status-bar');
+        const overlayTallyValue = document.getElementById('overlay-tally-value');
+        const ssOverlay = document.getElementById('screensaver');
+        const ssLogo = document.getElementById('bouncing-logo');
+        const gearBtn = document.getElementById('gear-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const numpadOverlay = document.getElementById('numpad-overlay');
+        const logOverlay = document.getElementById('log-overlay');
+        const logContainer = document.getElementById('log-container');
+        const closeLogBtn = document.getElementById('close-log-btn');
+        const workersOverlay = document.getElementById('workers-overlay');
+        const workersSearch = document.getElementById('workers-search');
+        const itemsOverlay = document.getElementById('items-overlay');
+        const itemsSearch = document.getElementById('items-search');
+        const badgeResolved = document.getElementById('badge-resolved');
+        const itemResolved = document.getElementById('item-resolved');
+        
+        let isEnteringNum = false;
+        let currentTally = "1";
+        let qtyEntryStarted = false;
+
+        // Scanner burst state. Keep raw scan text out of inputs until a burst completes.
+        let scanBuffer = "";
+        let scanTarget = null;
+        let scanLastKeyTs = 0;
+        let scanIdleTimer = null;
+        const SCAN_RESET_GAP_MS = 120;
+        const SCAN_IDLE_COMMIT_MS = 80;
+
+        let idleTime = 0;
+        let ssActive = false;
+        let settingsOpen = false;
+        let ssLimit = parseInt(localStorage.getItem('ssLimit')) || 300; 
+        
+        let posX = 0, posY = 0, dx = 4, dy = 4;
+        let animationFrameId = null;
+
+        // Render all QR codes on the page from their data-qr attributes.
+        // Uses the embedded qrcode-generator library (static/qrcode.min.js). 100% offline.
+        function _renderAllQR() {
+            document.querySelectorAll('canvas[data-qr]').forEach(canvas => {
+                const text = canvas.getAttribute('data-qr');
+                const qr = qrcode(0, 'L'); // type 0 = auto-size, ECC level L
+                qr.addData(text);
+                qr.make();
+                const count = qr.getModuleCount();
+                const scale = 4;
+                const quiet = 4;
+                const total = (count + quiet * 2) * scale;
+                canvas.width = total;
+                canvas.height = total;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, total, total);
+                ctx.fillStyle = '#000000';
+                for (let r = 0; r < count; r++) {
+                    for (let c = 0; c < count; c++) {
+                        if (qr.isDark(r, c)) {
+                            ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+                        }
+                    }
+                }
+            });
+        }
+
+        window.onload = () => {
+            _renderAllQR();
+            renderWorkersList();
+            document.getElementById('timer-setting').value = ssLimit / 60;
+            badgeInput.focus();
+            resetIdleTimer();
+        };
+
+        gearBtn.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); e.preventDefault();
+            settingsOpen = true;
+            settingsModal.style.display = 'block';
+            modalOverlay.style.display = 'block';
+            setTimeout(() => document.getElementById('timer-setting').focus(), 50);
+        });
+
+        saveBtn.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            const minutes = document.getElementById('timer-setting').value || 5;
+            ssLimit = minutes * 60;
+            localStorage.setItem('ssLimit', ssLimit);
+            settingsOpen = false;
+            settingsModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+            resetIdleTimer();
+            badgeInput.focus();
+        });
+
+        qtyBubble.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); openNumPad();
+        });
+
+        function applyManualQtyValue(rawVal, sourceEl) {
+            // Ignore in-flight scanner bursts like "NUM-5" or "CMD-CLEAR-QTY".
+            // Only commit to state when the field holds pure digits (manual typing).
+            const raw = rawVal || "";
+            if (/[^\d]/.test(raw)) return;
+            currentTally = raw;
+            qtyEntryStarted = raw.length > 0;
+            syncQtyDisplays(sourceEl);
+        }
+
+        function normalizeQtyIfEmpty() {
+            if (!currentTally) {
+                currentTally = "1";
+                qtyEntryStarted = false;
+                syncQtyDisplays();
+            }
+        }
+
+        // Manual Qty typing should stay native and sync into submit state.
+        qtyBubble.addEventListener('input', () => applyManualQtyValue(qtyBubble.value, qtyBubble));
+        overlayTallyValue.addEventListener('input', () => applyManualQtyValue(overlayTallyValue.value, overlayTallyValue));
+        qtyBubble.addEventListener('blur', normalizeQtyIfEmpty);
+        overlayTallyValue.addEventListener('blur', normalizeQtyIfEmpty);
+
+        function openNumPad() {
+            isEnteringNum = true;
+            numpadOverlay.style.display = 'flex';
+            syncQtyDisplays();
+            statusBar.innerText = "NUMBER ENTRY MODE";
+            statusBar.style.display = "block";
+            setTimeout(() => { overlayTallyValue.focus(); overlayTallyValue.select(); }, 100);
+        }
+
+        function closeNumPad() {
+            isEnteringNum = false;
+            numpadOverlay.style.display = 'none';
+            statusBar.style.display = "none";
+            setTimeout(() => {
+                if (!badgeInput.value) badgeInput.focus();
+                else if (!itemInput.value) itemInput.focus();
+            }, 100);
+        }
+
+        function openLogOverlay() {
+            logOverlay.style.display = 'flex';
+            statusBar.style.display = 'none';
+        }
+
+        function closeLogOverlay() {
+            logOverlay.style.display = 'none';
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        closeLogBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeLogOverlay();
+        });
+
+        function openWorkersOverlay() {
+            workersOverlay.style.display = 'flex';
+            statusBar.style.display = 'none';
+            workersSearch.value = '';
+            filterWorkers('');
+            setTimeout(() => workersSearch.focus(), 80);
+        }
+
+        function closeWorkersOverlay() {
+            workersOverlay.style.display = 'none';
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        function filterWorkers(query) {
+            const q = (query || '').trim().toLowerCase();
+            document.querySelectorAll('#workers-overlay .worker-tile').forEach(tile => {
+                const name = tile.getAttribute('data-name') || '';
+                const badge = tile.getAttribute('data-badge') || '';
+                const match = !q || name.includes(q) || badge.includes(q);
+                tile.classList.toggle('worker-hidden', !match);
+            });
+        }
+
+        workersSearch.addEventListener('input', () => filterWorkers(workersSearch.value));
+
+        // --- Workers sort (last-name default, toggle first/last via QR) ---
+        let workersSortMode = localStorage.getItem('workersSortMode') || 'last';
+        function lastName(fullName) {
+            const parts = (fullName || '').trim().split(/\s+/);
+            return parts.length ? parts[parts.length - 1] : '';
+        }
+        function firstName(fullName) {
+            const parts = (fullName || '').trim().split(/\s+/);
+            return parts.length ? parts[0] : '';
+        }
+        function renderWorkersList() {
+            const host = document.getElementById('workers-all');
+            if (!host) return;
+            const tiles = Array.from(host.querySelectorAll('.worker-tile'));
+            // Detach dividers from any previous render
+            host.querySelectorAll('.workers-letter, .workers-grid').forEach(n => n.remove());
+            tiles.forEach(t => t.remove());
+
+            tiles.sort((a, b) => {
+                const an = a.getAttribute('data-name') || '';
+                const bn = b.getAttribute('data-name') || '';
+                if (workersSortMode === 'last') {
+                    const al = lastName(an), bl = lastName(bn);
+                    return al.localeCompare(bl) || an.localeCompare(bn);
+                }
+                return firstName(an).localeCompare(firstName(bn)) || an.localeCompare(bn);
+            });
+
+            // Rebuild dividers + grids under #workers-all
+            let lastLetter = '';
+            let currentGrid = null;
+            tiles.forEach(t => {
+                const letter = (workersSortMode === 'last'
+                    ? t.getAttribute('data-last-initial')
+                    : t.getAttribute('data-first-initial')) || '';
+                if (letter !== lastLetter) {
+                    lastLetter = letter;
+                    const h = document.createElement('div');
+                    h.className = 'workers-letter';
+                    h.textContent = letter;
+                    host.appendChild(h);
+                    currentGrid = document.createElement('div');
+                    currentGrid.className = 'workers-grid';
+                    host.appendChild(currentGrid);
+                }
+                currentGrid.appendChild(t);
+            });
+
+            // Rebuild the JUMP row with only the letters present in this sort
+            const jumpGroup = document.getElementById('workers-jump-group');
+            if (jumpGroup) {
+                jumpGroup.querySelectorAll('.nav-tile').forEach(n => n.remove());
+                const letters = [...new Set(tiles.map(t =>
+                    (workersSortMode === 'last'
+                        ? t.getAttribute('data-last-initial')
+                        : t.getAttribute('data-first-initial')) || ''))].filter(Boolean);
+                letters.forEach(ltr => {
+                    const tile = document.createElement('div');
+                    tile.className = 'nav-tile letter';
+                    const c = document.createElement('canvas');
+                    c.setAttribute('data-qr', 'CMD-JUMP-' + ltr);
+                    tile.appendChild(c);
+                    const p = document.createElement('p');
+                    p.textContent = ltr;
+                    tile.appendChild(p);
+                    jumpGroup.appendChild(tile);
+                    // Render the freshly-inserted QR
+                    const qr = qrcode(0, 'L');
+                    qr.addData('CMD-JUMP-' + ltr);
+                    qr.make();
+                    const count = qr.getModuleCount();
+                    const scale = 4, quiet = 4;
+                    const total = (count + quiet * 2) * scale;
+                    c.width = total; c.height = total;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, total, total);
+                    ctx.fillStyle = '#000';
+                    for (let r = 0; r < count; r++) for (let cc = 0; cc < count; cc++)
+                        if (qr.isDark(r, cc)) ctx.fillRect((cc + quiet) * scale, (r + quiet) * scale, scale, scale);
+                });
+            }
+
+            // Update the SORT label
+            const lbl = document.getElementById('workers-sort-label');
+            if (lbl) lbl.textContent = workersSortMode.toUpperCase();
+        }
+
+        function toggleWorkersSort() {
+            workersSortMode = workersSortMode === 'last' ? 'first' : 'last';
+            localStorage.setItem('workersSortMode', workersSortMode);
+            renderWorkersList();
+            // Jump back to top after a sort change so the operator isn't lost
+            const el = document.getElementById('workers-container');
+            if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function openItemsOverlay() {
+            itemsOverlay.style.display = 'flex';
+            statusBar.style.display = 'none';
+            itemsSearch.value = '';
+            filterItems('');
+            setTimeout(() => itemsSearch.focus(), 80);
+        }
+
+        function closeItemsOverlay() {
+            itemsOverlay.style.display = 'none';
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        function filterItems(query) {
+            const q = (query || '').trim().toLowerCase();
+            document.querySelectorAll('#items-overlay .item-tile').forEach(tile => {
+                const name = tile.getAttribute('data-name') || '';
+                const code = tile.getAttribute('data-code') || '';
+                const match = !q || name.includes(q) || code.includes(q);
+                tile.classList.toggle('worker-hidden', !match);
+            });
+        }
+
+        itemsSearch.addEventListener('input', () => filterItems(itemsSearch.value));
+
+        // Clear the resolved name if the operator manually edits an input.
+        badgeInput.addEventListener('input', () => clearResolved(badgeResolved));
+        itemInput.addEventListener('input', () => clearResolved(itemResolved));
+
+        // --- Overlay scroll / jump nav (scanner-friendly) ---
+        function activeOverlayContainer() {
+            if (workersOverlay.style.display === 'flex') return document.getElementById('workers-container');
+            if (itemsOverlay.style.display === 'flex') return document.getElementById('items-container');
+            return null;
+        }
+
+        function handleOverlayNav(cmd) {
+            const el = activeOverlayContainer();
+            if (!el) return;
+            // The scan populated the focused search box with "CMD-NAV-..." text —
+            // clear it and restore the full list before scrolling.
+            const isWorkers = workersOverlay.style.display === 'flex';
+            if (isWorkers) {
+                workersSearch.value = '';
+                filterWorkers('');
+            } else {
+                itemsSearch.value = '';
+                filterItems('');
+            }
+            const step = Math.max(el.clientHeight - 120, 200); // ~one page minus header
+            if (cmd.includes('NAV-TOP')) {
+                el.scrollTo({ top: 0, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-BOTTOM')) {
+                el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-PGUP')) {
+                el.scrollBy({ top: -step, behavior: 'smooth' });
+            } else if (cmd.includes('NAV-PGDN')) {
+                el.scrollBy({ top: step, behavior: 'smooth' });
+            } else if (cmd.startsWith('CMD-JUMP-')) {
+                const letter = cmd.slice('CMD-JUMP-'.length, 'CMD-JUMP-'.length + 1);
+                if (!letter) return;
+                // Find the first letter-header inside the active overlay that matches.
+                // Compute scroll position manually so the sticky header + nav row don't
+                // cover the target — browsers' scrollIntoView doesn't know about sticky.
+                const headers = el.querySelectorAll('.workers-letter');
+                for (const h of headers) {
+                    if (h.textContent.trim().toUpperCase() === letter.toUpperCase()) {
+                        const header = el.querySelector('.workers-header');
+                        const nav = el.querySelector('.overlay-nav');
+                        const headerH = header ? header.offsetHeight : 0;
+                        const navH = nav ? nav.offsetHeight : 0;
+                        const stickyOffset = headerH + navH + 10; // small breathing room
+                        const target = h.offsetTop - stickyOffset;
+                        el.scrollTo({ top: Math.max(target, 0), behavior: 'smooth' });
+                        return;
+                    }
+                }
+            }
+        }
+
+        // --- Name resolution (kiosk visual confirmation after a scan) ---
+        function setResolvedKnown(el, name) {
+            el.className = 'resolved known';
+            el.textContent = name;
+            const row = el.closest('.scan-row');
+            if (row) { row.classList.add('resolved-known'); row.classList.remove('resolved-unknown'); }
+        }
+        function setResolvedUnknown(el) {
+            el.className = 'resolved unknown';
+            el.textContent = '[Unknown]';
+            const row = el.closest('.scan-row');
+            if (row) { row.classList.add('resolved-unknown'); row.classList.remove('resolved-known'); }
+        }
+        function clearResolved(el) {
+            el.className = 'resolved';
+            el.textContent = '';
+            const row = el.closest('.scan-row');
+            if (row) row.classList.remove('resolved-known', 'resolved-unknown');
+        }
+
+        async function resolveBadge(code) {
+            if (!code) { clearResolved(badgeResolved); return; }
+            try {
+                const r = await fetch('/api/lookup?badge=' + encodeURIComponent(code));
+                const j = await r.json();
+                if (j.known) setResolvedKnown(badgeResolved, j.name);
+                else setResolvedUnknown(badgeResolved);
+            } catch (_) { /* offline fallback: leave as-is */ }
+        }
+
+        async function resolveItem(code) {
+            if (!code) { clearResolved(itemResolved); return; }
+            try {
+                const r = await fetch('/api/lookup?item=' + encodeURIComponent(code));
+                const j = await r.json();
+                if (j.known) setResolvedKnown(itemResolved, j.name);
+                else setResolvedUnknown(itemResolved);
+            } catch (_) { /* offline fallback */ }
+        }
+
+        // Force wheel scrolling into the log panel while overlay is open.
+        logOverlay.addEventListener('wheel', (e) => {
+            if (logOverlay.style.display !== 'flex') return;
+            e.preventDefault();
+            logContainer.scrollTop += e.deltaY;
+        }, { passive: false });
+
+        function syncQtyDisplays(sourceEl) {
+            if (sourceEl !== qtyBubble) qtyBubble.value = currentTally;
+            if (sourceEl !== overlayTallyValue) overlayTallyValue.value = currentTally;
+            qtyInput.value = currentTally || "1";
+        }
+
+        function getQrDataFromItem(itemEl) {
+            const c = itemEl.querySelector('canvas[data-qr]');
+            return c ? c.getAttribute('data-qr') : null;
+        }
+
+        function stripCommandFragments(raw) {
+            if (!raw) return "";
+            return raw
+                .replace(/CMD-[A-Z0-9-]+/gi, '')
+                .replace(/NUM-\d+/gi, '')
+                .trim();
+        }
+
+        // Let operators use mouse/touch on QR tiles instead of scanning.
+        document.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const itemTile = e.target.closest('.item-tile');
+            if (itemTile) {
+                const code = itemTile.querySelector('canvas[data-qr]')?.getAttribute('data-qr');
+                if (!code) return;
+                e.preventDefault();
+                e.stopPropagation();
+                closeItemsOverlay();
+                handleBurst(code, itemInput);
+                return;
+            }
+            const workerTile = e.target.closest('.worker-tile');
+            if (workerTile) {
+                const badge = workerTile.querySelector('canvas[data-qr]')?.getAttribute('data-qr');
+                if (!badge) return;
+                e.preventDefault();
+                e.stopPropagation();
+                closeWorkersOverlay();
+                handleBurst(badge, badgeInput);
+                return;
+            }
+            const qrItem = e.target.closest('.qr-item');
+            if (!qrItem) return;
+            const burst = getQrDataFromItem(qrItem);
+            if (!burst) return;
+            e.preventDefault();
+            e.stopPropagation();
+            handleBurst(burst, null);
+        });
+
+        function ensureFocus(e) {
+            if (ssActive) { stopScreensaver(); return; }
+            if (settingsOpen || isEnteringNum ||
+                logOverlay.style.display === 'flex' ||
+                workersOverlay.style.display === 'flex' ||
+                itemsOverlay.style.display === 'flex') return;
+            if (e && (e.target.closest('#gear-btn, #settings-modal, #qty-bubble') || e.target.tagName === 'INPUT')) return;
+            if (!badgeInput.value) badgeInput.focus();
+            else if (!itemInput.value) itemInput.focus();
+        }
+
+        function resetIdleTimer() { idleTime = 0; if (ssActive) stopScreensaver(); }
+        setInterval(() => { if (!settingsOpen) { idleTime++; if (idleTime >= ssLimit && !ssActive) startScreensaver(); } }, 1000);
+
+        function startScreensaver() {
+            ssActive = true; ssOverlay.style.display = 'block';
+            posX = Math.random() * (window.innerWidth - 200);
+            posY = Math.random() * (window.innerHeight - 150);
+            moveLogo();
+        }
+
+        function stopScreensaver() {
+            ssActive = false; ssOverlay.style.display = 'none';
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            badgeInput.focus();
+        }
+
+        function moveLogo() {
+            if (!ssActive) return;
+            const winW = window.innerWidth, winH = window.innerHeight;
+            const logoW = ssLogo.offsetWidth || 150, logoH = ssLogo.offsetHeight || 100;
+            if (posX + logoW >= winW || posX <= 0) dx = -dx;
+            if (posY + logoH >= winH || posY <= 0) dy = -dy;
+            posX += dx; posY += dy;
+            ssLogo.style.left = posX + 'px'; ssLogo.style.top = posY + 'px';
+            animationFrameId = requestAnimationFrame(moveLogo);
+        }
+
+        ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => window.addEventListener(evt, resetIdleTimer));
+
+        function clearScanState() {
+            scanBuffer = "";
+            scanTarget = null;
+            scanLastKeyTs = 0;
+            if (scanIdleTimer) {
+                clearTimeout(scanIdleTimer);
+                scanIdleTimer = null;
+            }
+        }
+
+        function scheduleIdleCommit() {
+            if (scanIdleTimer) clearTimeout(scanIdleTimer);
+            scanIdleTimer = setTimeout(() => {
+                if (scanBuffer) {
+                    const val = scanBuffer.trim();
+                    const target = scanTarget;
+                    clearScanState();
+                    if (val) handleBurst(val, target);
+                }
+            }, SCAN_IDLE_COMMIT_MS);
+        }
+
+        function captureScanTarget() {
+            const activeEl = document.activeElement;
+            if (activeEl === badgeInput || activeEl === itemInput || activeEl === qtyBubble) return activeEl;
+            if (!badgeInput.value) return badgeInput;
+            if (!itemInput.value) return itemInput;
+            return badgeInput;
+        }
+
+        // --- Admin hotkey: Ctrl+Shift+A jumps straight to the admin login ---
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                window.location.href = '/admin';
+            }
+        }, true);
+
+        // --- MASTER BURST INTERCEPTOR (capture phase to beat input mutation) ---
+        document.addEventListener('keydown', (e) => {
+            if (settingsOpen) return;
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            const activeEl = document.activeElement;
+            const isFocusedInput = activeEl instanceof HTMLInputElement;
+
+            if (e.key === 'Enter') {
+                if (scanBuffer) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const val = scanBuffer.trim();
+                    const target = scanTarget;
+                    clearScanState();
+                    if (val) handleBurst(val, target, null);
+                    return;
+                }
+
+                // Scanner in keyboard-wedge mode often types into the focused field then sends Enter.
+                if (isFocusedInput) {
+                    const val = activeEl.value.trim();
+                    if (!val) return;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    handleBurst(val, activeEl, activeEl);
+                }
+                return;
+            }
+
+            if (e.key === 'Backspace' && scanBuffer) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                scanBuffer = scanBuffer.slice(0, -1);
+                scheduleIdleCommit();
+                return;
+            }
+
+            // Modifier keys (Shift, CapsLock, arrows, etc.) fire their own keydown events.
+            // Ignore them — don't wipe scan state, don't mutate inputs.
+            if (e.key.length !== 1) return;
+
+            // Special case: when a qty input is focused and the scanner sends a
+            // NUM-X burst, the non-digit chars (N/U/M/-) must NOT land in the
+            // qty field — they'd pollute the visible value. Divert the entire
+            // burst into the master scan buffer instead so the command handler
+            // can process it cleanly on Enter.
+            const isQtyInput = activeEl === qtyBubble || activeEl === overlayTallyValue;
+            const isScanBurstChar = !/^\d$/.test(e.key);
+            if (isQtyInput && (isScanBurstChar || scanBuffer)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const now = Date.now();
+                if (scanBuffer && now - scanLastKeyTs > SCAN_RESET_GAP_MS) {
+                    clearScanState();
+                }
+                if (!scanBuffer) scanTarget = activeEl;
+                scanBuffer += e.key;
+                scanLastKeyTs = now;
+                scheduleIdleCommit();
+                return;
+            }
+
+            if (isFocusedInput) {
+                // Keep native typing behavior in inputs (manual keyboard entry).
+                clearScanState();
+                return;
+            }
+
+            const now = Date.now();
+            if (scanBuffer && now - scanLastKeyTs > SCAN_RESET_GAP_MS) {
+                const staleVal = scanBuffer.trim();
+                const staleTarget = scanTarget;
+                clearScanState();
+                if (staleVal) handleBurst(staleVal, staleTarget);
+            }
+
+            if (!scanBuffer) scanTarget = captureScanTarget();
+
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            scanBuffer += e.key;
+            scanLastKeyTs = now;
+            scheduleIdleCommit();
+        }, true);
+
+        function handleBurst(val, targetInput, sourceInput) {
+            const normalized = val.toUpperCase().replace(/\s+/g, '');
+            // Flexible detection for commands (handles missing hyphens)
+            const isCommand = normalized.includes('CMD') || normalized.includes('NUM');
+
+            if (isCommand) {
+                if (sourceInput instanceof HTMLInputElement) {
+                    sourceInput.value = stripCommandFragments(sourceInput.value);
+                }
+                statusBar.innerText = "COMMAND: " + normalized;
+                statusBar.style.display = "block";
+
+                if (normalized.includes('REDO')) {
+                    statusBar.style.display = "none";
+                    if (normalized.includes('BADGE')) {
+                        badgeInput.value = "";
+                        clearResolved(badgeResolved);
+                        badgeInput.focus();
+                    } else {
+                        itemInput.value = "";
+                        clearResolved(itemResolved);
+                        itemInput.focus();
+                    }
+                    return;
+                }
+                if (normalized.includes('CLEAR-QTY')) {
+                    currentTally = "1";
+                    qtyEntryStarted = false;
+                    syncQtyDisplays();
+                    return;
+                }
+                if (normalized.includes('OPEN-LOG')) { openLogOverlay(); return; }
+                if (normalized.includes('DONE-LOG') || normalized.includes('CLOSE-LOG')) { closeLogOverlay(); return; }
+                if (normalized.includes('OPEN-WORKERS')) { openWorkersOverlay(); return; }
+                if (normalized.includes('DONE-WORKERS') || normalized.includes('CLOSE-WORKERS')) { closeWorkersOverlay(); return; }
+                if (normalized.includes('OPEN-ITEMS')) { openItemsOverlay(); return; }
+                if (normalized.includes('DONE-ITEMS') || normalized.includes('CLOSE-ITEMS')) { closeItemsOverlay(); return; }
+                if (normalized.startsWith('CMD-NAV-') || normalized.startsWith('CMD-JUMP-')) {
+                    handleOverlayNav(normalized);
+                    return;
+                }
+                if (normalized === 'CMD-SORT-WORKERS') {
+                    toggleWorkersSort();
+                    return;
+                }
+                if (normalized.includes('OPEN-PAD')) { openNumPad(); return; }
+                if (normalized.includes('DONE-PAD')) { closeNumPad(); return; }
+                if (normalized.includes('NUM-') || (normalized.startsWith('NUM') && /\d/.test(normalized))) {
+                    const digitMatch = normalized.match(/\d/);
+                    if (!digitMatch) return;
+                    const digit = digitMatch[0];
+                    if (!isEnteringNum) openNumPad();
+
+                    if (!qtyEntryStarted) {
+                        currentTally = digit;
+                        qtyEntryStarted = true;
+                    } else {
+                        currentTally += digit;
+                    }
+                    syncQtyDisplays();
+                    return;
+                }
+                if (normalized.includes('SUBMIT')) {
+                    if (badgeInput.value && itemInput.value) {
+                        const formData = new FormData();
+                        formData.append('badge', badgeInput.value);
+                        formData.append('item', itemInput.value);
+                        formData.append('qty', currentTally || "1");
+                        fetch('/scan', { method: 'POST', body: formData }).then(() => window.location.reload());
+                    } else {
+                        statusBar.innerText = "ERROR: MISSING DATA";
+                        statusBar.style.display = "block";
+                    }
+                    return;
+                }
+            } else {
+                // It is data: commit only once, to the field captured when burst started.
+                const workersWasOpen = workersOverlay.style.display === 'flex';
+                const itemsWasOpen = itemsOverlay.style.display === 'flex';
+                let target = targetInput;
+                // Scans from inside a grid search box route to the intended field:
+                //   Workers overlay -> badge field; Items overlay -> item field.
+                if (target === workersSearch || workersWasOpen) {
+                    target = badgeInput;
+                } else if (target === itemsSearch || itemsWasOpen) {
+                    target = itemInput;
+                }
+                if (!(target instanceof HTMLInputElement)) {
+                    if (!badgeInput.value) target = badgeInput;
+                    else if (!itemInput.value) target = itemInput;
+                }
+
+                if (target instanceof HTMLInputElement) {
+                    target.value = val;
+                    if (workersWasOpen) {
+                        workersSearch.value = '';
+                        filterWorkers('');
+                        closeWorkersOverlay();
+                    }
+                    if (itemsWasOpen) {
+                        itemsSearch.value = '';
+                        filterItems('');
+                        closeItemsOverlay();
+                    }
+                    if (target === badgeInput) {
+                        resolveBadge(val);
+                        setTimeout(() => itemInput.focus(), 10);
+                    } else if (target === itemInput) {
+                        resolveItem(val);
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

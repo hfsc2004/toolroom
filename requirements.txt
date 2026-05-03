@@ -1,0 +1,8 @@
+# Web Framework
+Flask==3.0.3
+
+# Production WSGI Server
+gunicorn==22.0.0
+
+# Optional: if you decide to use more advanced DB features later
+# blinker==1.8.2
