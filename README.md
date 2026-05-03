@@ -4,7 +4,7 @@
   <img src="static/kiosk.png" alt="Toolroom Logo" width="400">
 </p>
 
-A barcode/QR-code scanning kiosk for tool crib inventory tracking, built for Raspberry Pi 4.
+A barcode/QR-code scanning kiosk for tool crib inventory tracking, built for Single Board Computers.
 
 Workers scan their badge, scan a tool, and the transaction is logged. Runs fullscreen as a dedicated Wayland kiosk — no desktop environment needed.
 
@@ -21,7 +21,7 @@ Workers scan their badge, scan a tool, and the transaction is logged. Runs fulls
 
 ## Requirements
 
-- Raspberry Pi 4 (4GB recommended) running Raspberry Pi OS (Bookworm or later)
+- Single Board Computers (4GB recommended) running a compatible Linux OS (e.g., Raspberry Pi OS) (Bookworm or later)
 - Network connection
 - USB barcode/QR scanner (acts as keyboard input)
 
@@ -34,7 +34,7 @@ sudo ./install.sh
 sudo reboot
 ```
 
-The Pi will boot directly into the kiosk. No desktop, no login prompt — just the app fullscreen.
+The Single Board Computer will boot directly into the kiosk. No desktop, no login prompt — just the app fullscreen.
 
 ## What the installer does
 
@@ -61,7 +61,7 @@ All management is done via SSH.
 ## Architecture
 
 ```
-[Pi boots] -> TTY1 auto-login (toolroom) -> .bash_profile -> start.sh
+[Single Board Computer boots] -> TTY1 auto-login (toolroom) -> .bash_profile -> start.sh
   start.sh:
     1. Gunicorn (Flask app) on 127.0.0.1:5000
     2. cage (Wayland compositor) -> cog (WebKit browser) -> localhost:5000
@@ -77,10 +77,10 @@ All management is done via SSH.
 
 The kiosk UI is also accessible from other devices on the network. With nginx configured:
 
-- `https://<pi-ip>/` — requires HTTP Basic Auth
+- `https://<device-ip>/` — requires HTTP Basic Auth
 - Default login: **admin** / **change-me** — change this immediately in the User Manager
-- Admin dashboard: `https://<pi-ip>/admin`
-- User Manager: `https://<pi-ip>/admin/users` — add, edit, deactivate, or delete accounts
+- Admin dashboard: `https://<device-ip>/admin`
+- User Manager: `https://<device-ip>/admin/users` — add, edit, deactivate, or delete accounts
 
 ## Project Structure
 
@@ -103,7 +103,7 @@ The kiosk UI is also accessible from other devices on the network. With nginx co
 
 ## Development
 
-To run on a Pi with Raspberry Pi OS desktop (without kiosk mode):
+To run on a Single Board Computer with a desktop environment (without kiosk mode):
 
 ```bash
 ./install.sh            # Skip if deps already installed
@@ -111,3 +111,6 @@ To run on a Pi with Raspberry Pi OS desktop (without kiosk mode):
 ```
 
 Note: When running under the desktop, cage opens as a window. Use Ctrl+C in the terminal to shut down cleanly.
+shut down cleanly.
+ down cleanly.
+shut down cleanly.
